@@ -7,11 +7,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # 依赖文件导入
 from rag.loader import documents
 # 导入配置
-from config import settings
+from tools.config_loader import rag_conf
 
 splitter = RecursiveCharacterTextSplitter(
-    chunk_size=settings.chunk_size,
-    chunk_overlap=settings.chunk_overlap,
+    chunk_size=rag_conf["splitter"]["chunk_size"],
+    chunk_overlap=rag_conf["splitter"]["chunk_overlap"],
     separators=[".",",","!","?","。","，","！","？","\n","\n\n"," ",""],
     length_function=len
 )

@@ -1,0 +1,4 @@
+# 模型配置
+chat_model_name: "deepseek-chat"
+summarize_model_name: "deepseek-chat"
+need_retriever_model: "qwen-turbo"

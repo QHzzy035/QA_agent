@@ -4,13 +4,13 @@ from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, Sys
 from langchain.chat_models import init_chat_model
 # 依赖文件导入
 from agent import agent
-from config import settings
+from tools.config_loader import LLM_conf,BASE_DIR
 from rag.connected_prompts import new_prompt
 from rag.loader import loader
 from rag.splitter import splitter
 from rag.retriever import chroma
 
-summarize_model = init_chat_model(model=settings.chat_model_name)
+summarize_model = init_chat_model(model=LLM_conf["chat_model_name"])
 
 # 方法定义：历史消息过多时，从最早的几次历史消息中进行总结
 def summarize_history(history: list, summarize_length: int = 6):
@@ -52,7 +52,7 @@ with st.sidebar:
     # 保存文件到test_data里
     if uploaded_files:
         for file in uploaded_files:
-            save_path = settings.BASE_DIR / "test_data" / file.name
+            save_path = BASE_DIR / "test_data" / file.name
             # 避免重复上传
             if not save_path.exists():
                 with open(save_path, "wb") as f:

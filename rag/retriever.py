@@ -8,13 +8,13 @@ from langchain_community.embeddings import DashScopeEmbeddings
 from rag.splitter import doc_splitter
 from langchain_chroma import Chroma
 # 导入配置
-from config import settings
+from tools.config_loader import persist_directory, rag_conf
 
 # 定义数据库
 chroma = Chroma(
-    collection_name=settings.collection_name,
-    embedding_function= DashScopeEmbeddings(model=settings.embedding_model_name),
-    persist_directory=settings.persist_directory,
+    collection_name=rag_conf["vector_database"]["collection_name"],
+    embedding_function= DashScopeEmbeddings(model=rag_conf["vector_database"]["embedding_model_name"]),
+    persist_directory=persist_directory,
 )
 
 # 将文档数据上传到数据库
@@ -22,7 +22,7 @@ chroma.add_documents(doc_splitter)
 
 # MMR检索方法
 def retriever(query: str) -> list:
-    results = chroma.max_marginal_relevance_search(query, k=settings.k, fetch_k=settings.fetch_k)
+    results = chroma.max_marginal_relevance_search(query, k=rag_conf["k"], fetch_k=rag_conf["fetch_k"])
     return [(doc.page_content, doc.metadata) for doc in results]
 
 # 测试

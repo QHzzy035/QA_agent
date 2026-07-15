@@ -4,10 +4,10 @@
 """
 # 导入依赖
 from langchain_community.document_loaders import DirectoryLoader, UnstructuredFileLoader
-from config import settings
+from tools import config_loader
 
 loader = DirectoryLoader(
-    path=settings.BASE_DIR/"test_data",
+    path=config_loader.BASE_DIR / "test_data",
     glob="**/*.*",
     loader_cls=UnstructuredFileLoader,
     loader_kwargs={"encoding": "utf-8"},

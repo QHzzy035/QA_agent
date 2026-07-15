@@ -7,11 +7,11 @@ from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_core.messages import HumanMessage
 # 依赖文件导入
 from rag.retriever import retriever
-from config import settings
+from tools.config_loader import LLM_conf
 
 # 判断模型
 def need_retriever(query: str) -> bool:
-    model = ChatTongyi(model=settings.need_retriever_model)
+    model = ChatTongyi(model=LLM_conf["need_retriever_model"])
     result = model.invoke(
         [HumanMessage(f"""你是一个查询判断助手。用户有一个私有文档库，包含个人收藏的文章、书籍节选等资料。
   判断用户的问题是否需要查询这个文档库才能回答。
