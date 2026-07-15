@@ -52,8 +52,12 @@ streamlit run streamlit_file.py
 QA Agent/
 ├── agent.py                 # 智能体定义
 ├── streamlit_file.py        # Web 界面
-├── config/
-│   └── settings.py          # 配置
+├── config/                  # 配置目录（YAML 格式）
+│   ├── LLM.yaml             #   大模型配置
+│   ├── rag.yaml             #   RAG 检索配置
+│   └── tavily.yaml          #   联网搜索配置
+├── tools/
+│   └── config_loader.py     # 配置加载工具
 ├── prompts/
 │   └── system_prompts.txt   # 系统提示词
 ├── rag/
