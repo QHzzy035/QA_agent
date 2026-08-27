@@ -1,3 +1,7 @@
+"""
+文件名：streamlit_file.py
+介绍：前端部分，使用streamlit进行编写
+"""
 # 依赖库导入
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
@@ -76,6 +80,10 @@ with st.sidebar:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# 已提示过的工具调用集合，用于避免同一个工具调用在流式输出里被重复提醒
+if "shown_tool_calls" not in st.session_state:
+    st.session_state.shown_tool_calls = set()
+
 # 显示历史对话
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -132,11 +140,20 @@ if user_input:
                         msg = chunk
                         metadata = {}
 
-                    # 检测工具调用
+                    # 检测工具调用（流式输出时 tool_calls 会被拆成多个 chunk，
+                    # 需按 tool_call 的 id 去重，且等名称就绪后再提示，避免重复或空提醒）
                     if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                        tool_name = msg.tool_calls[0].get("name", "未知工具")
-                        with st.sidebar:
-                            st.info(f"🔧 正在调用工具: {tool_name}")
+                        for tc in msg.tool_calls:
+                            tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                            tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                            # 名称还没流到（部分 chunk 里 name 为空），跳过避免显示空提醒
+                            if not tc_name:
+                                continue
+                            # 同一个工具调用只提示一次
+                            if tc_id not in st.session_state.shown_tool_calls:
+                                st.session_state.shown_tool_calls.add(tc_id)
+                                with st.sidebar:
+                                    st.info(f"🔧 正在调用工具: {tc_name}")
 
                     # 只取 AI 消息的内容片段
                     if isinstance(msg, AIMessageChunk) and msg.content:

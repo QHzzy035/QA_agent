@@ -1,3 +1,7 @@
+"""
+文件名：agent.py
+介绍：定义智能体，包括提示词注入，工具定义。
+"""
 # 依赖库导入
 from datetime import datetime
 from langchain.agents import create_agent
@@ -6,7 +10,7 @@ from langchain_tavily import TavilySearch
 # 依赖文件导入
 from tools.config_loader import BASE_DIR, tavily_conf, LLM_conf
 
-# 开启调试模式，在终端打印完整的思考过程
+# 使用set_debug开启调试模式，在终端打印完整的思考过程
 # set_debug(True)
 
 # 读取系统提示词，并注入当前日期
