@@ -14,10 +14,12 @@ from rag.loader import loader
 from rag.splitter import splitter
 from rag.retriever import chroma
 
-summarize_model = init_chat_model(model=LLM_conf["chat_model_name"])
+summarize_model = init_chat_model(model=LLM_conf["summarize_model_name"])
 
-# 方法定义：历史消息过多时，从最早的几次历史消息中进行总结
-def summarize_history(history: list, summarize_length: int = 6):
+# 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
+def summarize_history(history: list, summarize_length: int = None):
+    if summarize_length is None:
+        summarize_length = LLM_conf.get("history_summarize_length", 6)
     if len(history) <= summarize_length:
         return history
 
@@ -84,6 +86,10 @@ if "messages" not in st.session_state:
 if "shown_tool_calls" not in st.session_state:
     st.session_state.shown_tool_calls = set()
 
+# 每轮检索到的来源，用于让 agent 在多轮对话中记住之前引用过的文档
+if "retrieved_sources" not in st.session_state:
+    st.session_state.retrieved_sources = []
+
 # 显示历史对话
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -95,11 +101,19 @@ user_input = st.chat_input("请输入你的问题...")
 if user_input:
     # 定义历史消息
     history = []
+    assistant_count = 0
     for msg in st.session_state.messages:
         if msg["role"] == "user":
             history.append(HumanMessage(content=msg["content"]))
         else:
-            history.append(AIMessage(content=msg["content"]))
+            content = msg["content"]
+            # 把该轮检索到的来源附加到助手消息末尾，让 agent 多轮时记住引用了哪些文档
+            if assistant_count < len(st.session_state.retrieved_sources):
+                sources = st.session_state.retrieved_sources[assistant_count]
+                if sources:
+                    content += f"\n\n[本轮检索来源: {sources}]"
+            assistant_count += 1
+            history.append(AIMessage(content=content))
 
     # 旧消息的总结
     history = summarize_history(history)
@@ -109,7 +123,17 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    prompt_text, retrieved_info = new_prompt(user_input)
+    prompt_text, retrieved_info = new_prompt(user_input, history)
+
+    # 保存本轮检索来源（供下一轮 agent 理解指代）
+    if retrieved_info:
+        sources_text = "；".join(
+            f"{info['source']}（{info['preview'][:30]}…）" for info in retrieved_info
+        )
+    else:
+        sources_text = ""
+    st.session_state.retrieved_sources.append(sources_text)
+
     current_message = HumanMessage(prompt_text)
 
     # 侧边栏：展示思考过程

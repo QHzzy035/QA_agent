@@ -1,13 +1,15 @@
-# QA Agent — 文档问答助手
+# QA Agent — 你的私人知识库问答助手
 
-基于 RAG + 智能体的文档问答系统，支持多格式文档检索和联网搜索。
+把你收藏的文章、笔记、文档，变成一个可以**直接对话的知识库**。上传文档 → 自动检索 → 用自然语言提问，AI 结合你的资料回答，查不到还能联网搜索。
+
+![QA Agent 运行截图](assets/showit.png)
 
 ## 功能
 
 - 📄 **多格式文档支持**：txt / pdf / docx / md
 - 🔍 **MMR 多样化检索**：兼顾相关性和多样性
 - 🌐 **智能联网搜索**：文档库查不到时自动联网搜索
-- 💬 **多轮对话**：支持上下文对话 + 历史摘要压缩
+- 💬 **多轮对话**：上下文理解 + 指代消解（查询改写）+ 来源记忆，历史过长自动摘要压缩
 - 🧠 **思考过程可视化**：侧边栏展示检索来源和工具调用
 - 📤 **文件上传**：Streamlit 界面内直接上传文档
 
@@ -51,7 +53,14 @@ DEEPSEEK_API_KEY=你的DeepSeekAPIKey
 
 ### 4. 放入文档
 
-将需要检索的文档放入 `test_data/` 文件夹。
+`test_data/` 目录已被 `.gitignore` 排除，**克隆下来的项目默认是空的**。你可以二选一：
+
+- **自己放文档**：把要检索的文档（txt / pdf / docx / md）放进 `test_data/`；
+- **生成测试文档**：项目自带脚本，一键生成 30 篇中文测试文档（技术/科学/人文/生活四大类）：
+
+  ```bash
+  python -m tools.generate_test_data
+  ```
 
 ### 5. 启动
 
@@ -68,6 +77,8 @@ QA Agent/
 ├── pyproject.toml           # 项目依赖配置（uv 管理）
 ├── uv.lock                  # 依赖锁文件
 ├── .python-version          # Python 版本要求
+├── assets/
+│   └── showit.png           # README 截图
 ├── .streamlit/
 │   └── config.toml          # Streamlit 配置
 ├── config/                  # 配置目录（YAML 格式）
