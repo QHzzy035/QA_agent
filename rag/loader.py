@@ -12,5 +12,3 @@ loader = DirectoryLoader(
     loader_cls=UnstructuredFileLoader,
     loader_kwargs={"encoding": "utf-8"},
 )
-
-documents = loader.load()

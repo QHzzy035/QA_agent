@@ -4,8 +4,6 @@
 """
 # 依赖库导入
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-# 依赖文件导入
-from rag.loader import documents
 # 导入配置
 from tools.config_loader import rag_conf
 
@@ -15,5 +13,3 @@ splitter = RecursiveCharacterTextSplitter(
     separators=[".",",","!","?","。","，","！","？","\n","\n\n"," ",""],
     length_function=len
 )
-
-doc_splitter = splitter.split_documents(documents)

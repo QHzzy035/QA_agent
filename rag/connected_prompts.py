@@ -60,7 +60,7 @@ def rewrite_query(query: str, history: list) -> str:
 
 
 # 拼接新的提示词
-def new_prompt(query: str, history: list = None):
+def new_prompt(query: str, history: list = None, k: int = None, fetch_k: int = None):
     # 规则识别明显不需要检索的问题（你是谁、现在几点、闲聊等）
     if is_no_retrieval(query):
         return query, []
@@ -75,7 +75,7 @@ def new_prompt(query: str, history: list = None):
     collected_msg = []
 
     # 接收检索器返回的结果（用改写后的查询检索）
-    for content, metadata in retriever(search_query):
+    for content, metadata in retriever(search_query, k=k, fetch_k=fetch_k):
         file_name = Path(metadata.get("source", "未知来源")).name
         add_context += f"[来源: {file_name}]\n{content}\n\n"
         collected_msg.append({

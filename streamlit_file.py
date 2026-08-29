@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, Sys
 from langchain.chat_models import init_chat_model
 # 依赖文件导入
 from agent import agent
-from tools.config_loader import LLM_conf,BASE_DIR
+from tools.config_loader import LLM_conf, BASE_DIR, rag_conf
 from rag.connected_prompts import new_prompt
 from rag.loader import loader
 from rag.splitter import splitter
@@ -19,7 +19,7 @@ summarize_model = init_chat_model(model=LLM_conf["summarize_model_name"])
 # 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
 def summarize_history(history: list, summarize_length: int = None):
     if summarize_length is None:
-        summarize_length = LLM_conf.get("history_summarize_length", 6)
+        summarize_length = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 6))
     if len(history) <= summarize_length:
         return history
 
@@ -44,10 +44,106 @@ def summarize_history(history: list, summarize_length: int = None):
 
     return [summarize] + recent_history
 
+
+def get_document_list():
+    """返回 test_data 目录下的文档列表，含文件名和索引 chunk 数。"""
+    import os
+    test_data_dir = BASE_DIR / "test_data"
+    files = sorted(test_data_dir.glob("*.*"))
+
+    # 从向量库统计每个文档（按 source 路径）的 chunk 数
+    source_counts = {}
+    metadatas = chroma.get(include=["metadatas"]).get("metadatas", [])
+    for meta in metadatas:
+        source = os.path.normpath(meta.get("source", ""))
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+    doc_list = []
+    for f in files:
+        if f.is_file():
+            chunks = source_counts.get(os.path.normpath(str(f)), 0)
+            doc_list.append({"name": f.name, "chunks": chunks, "indexed": chunks > 0, "path": str(f)})
+    return doc_list
+
+
+def delete_document(file_path: str):
+    """删除文档：从向量库移除对应 chunk，并从磁盘删除文件。"""
+    import os
+    from pathlib import Path
+    # 规范化路径，与向量库 metadata 中的 source 保持一致
+    normalized = os.path.normpath(file_path)
+    # 1. 从向量库删除该文档的所有 chunk（按 source 路径）
+    chroma.delete(where={"source": normalized})
+    # 2. 从磁盘删除文件
+    Path(file_path).unlink(missing_ok=True)
+
+
+def read_document(file_path: str) -> str:
+    """读取文档内容（支持文本类格式 txt/md）。"""
+    from pathlib import Path
+    try:
+        return Path(file_path).read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "（二进制文件，无法直接预览）"
+    except Exception as e:
+        return f"（读取失败：{e}）"
+
+
+@st.dialog("文档内容")
+def show_document(name: str, content: str):
+    """弹窗展示文档原文。"""
+    st.caption(name)
+    st.markdown(content)
+
+
+# 设置弹窗：配置检索条数和历史总结阈值（仅本次会话生效，重启恢复默认）
+@st.dialog("设置")
+def settings_dialog():
+    current_k = st.session_state.get("k_override", rag_conf["k"])
+    current_summarize = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 6))
+
+    new_k = st.slider("每次检索返回多少条", 1, 10, current_k)
+    new_summarize = st.slider("历史多少条后压缩", 2, 50, current_summarize)
+
+    st.caption("改动仅本次会话生效，重启后恢复默认值")
+
+    col_save, col_reset = st.columns(2)
+    with col_save:
+        if st.button("保存", use_container_width=True):
+            st.session_state["k_override"] = new_k
+            st.session_state["summarize_length_override"] = new_summarize
+            st.rerun()
+    with col_reset:
+        if st.button("恢复默认", use_container_width=True):
+            st.session_state.pop("k_override", None)
+            st.session_state.pop("summarize_length_override", None)
+            st.rerun()
+
+
 st.title("文档问答助手")
 
 # 上传文件
 with st.sidebar:
+    # 限制侧边栏最小宽度，防止被压缩到太窄导致内容错位
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        min-width: 340px !important;
+    }
+    /* 文档名不换行，超出省略，避免窄屏下被掰断 */
+    .doc-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 设置按钮（放在侧边栏顶部，固定不随主内容滚动）
+    if st.button("⚙️ 设置", use_container_width=True):
+        settings_dialog()
+
     st.header("文档管理")
     uploaded_files = st.file_uploader(
         "上传文档",
@@ -77,6 +173,30 @@ with st.sidebar:
             chroma.reset_collection()
             chroma.add_documents(doc_chunks)
             st.success("文档库已更新！")
+
+    st.divider()
+    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）
+    with st.expander("📚 文档库"):
+        doc_list = get_document_list()
+        if doc_list:
+            for doc in doc_list:
+                col_name, col_view, col_del = st.columns([3, 1, 1], vertical_alignment="center")
+                with col_name:
+                    status = f"已索引 · {doc['chunks']} 段" if doc["indexed"] else "未索引"
+                    st.markdown(f"<span class='doc-name'>📄 {doc['name']}</span>", unsafe_allow_html=True)
+                    st.caption(status)
+                with col_view:
+                    if st.button("👁️", key=f"view_{doc['name']}", help="浏览原文"):
+                        content = read_document(doc["path"])
+                        show_document(doc["name"], content)
+                with col_del:
+                    with st.popover("🗑️", key=f"pop_{doc['name']}"):
+                        st.write(f"删除「{doc['name']}」？")
+                        if st.button("确认删除", key=f"confirm_del_{doc['name']}"):
+                            delete_document(doc["path"])
+                            st.rerun()
+        else:
+            st.caption("暂无文档，可上传或运行生成脚本")
 
 # 初始化会话历史
 if "messages" not in st.session_state:
@@ -123,7 +243,7 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    prompt_text, retrieved_info = new_prompt(user_input, history)
+    prompt_text, retrieved_info = new_prompt(user_input, history, k=st.session_state.get("k_override"))
 
     # 保存本轮检索来源（供下一轮 agent 理解指代）
     if retrieved_info:
