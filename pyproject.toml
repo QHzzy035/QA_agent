@@ -17,7 +17,8 @@ dependencies = [
     "pyarrow==23.0.0",
     "python-dotenv>=1.2.2",
     "streamlit>=1.58.0",
-    "unstructured>=0.23.1",
+    "unstructured-inference>=1.6.13",
+    "unstructured[docx,md,pdf]>=0.23.1",
 ]
 
 [[tool.uv.index]]

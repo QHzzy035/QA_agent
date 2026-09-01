@@ -62,11 +62,16 @@ DEEPSEEK_API_KEY=你的DeepSeekAPIKey
 `test_data/` 目录已被 `.gitignore` 排除，**克隆下来的项目默认是空的**。你可以二选一：
 
 - **自己放文档**：把要检索的文档（txt / pdf / docx / md）放进 `test_data/`；
-- **生成测试文档**：项目自带脚本，一键生成 30 篇中文测试文档（技术/科学/人文/生活四大类）：
+- **生成测试文档**：项目自带脚本，按格式分别生成中文测试文档（txt 30 篇，md / docx / pdf 各 10 篇）：
 
   ```bash
-  python -m tools.generate_test_data
+  python -m tools.generate_txt    # 生成 30 篇 .txt
+  python -m tools.generate_md     # 生成 10 篇 .md
+  python -m tools.generate_docx   # 生成 10 篇 .docx
+  python -m tools.generate_pdf    # 生成 10 篇 .pdf
   ```
+
+  > 生成会调用 DeepSeek API 产生费用，建议安排在空闲时段运行。
 
 ### 5. 启动
 
@@ -94,7 +99,10 @@ QA Agent/
 │   └── tavily.yaml          #   联网搜索配置
 ├── tools/
 │   ├── config_loader.py     # 配置加载工具
-│   └── generate_test_data.py # 测试数据生成脚本
+│   ├── generate_txt.py      # 测试数据生成脚本（txt）
+│   ├── generate_md.py       # 测试数据生成脚本（md）
+│   ├── generate_docx.py     # 测试数据生成脚本（docx）
+│   └── generate_pdf.py      # 测试数据生成脚本（pdf）
 ├── prompts/
 │   └── system_prompts.txt   # 系统提示词
 ├── rag/

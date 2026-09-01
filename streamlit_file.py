@@ -19,7 +19,7 @@ summarize_model = init_chat_model(model=LLM_conf["summarize_model_name"])
 # 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
 def summarize_history(history: list, summarize_length: int = None):
     if summarize_length is None:
-        summarize_length = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 6))
+        summarize_length = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 10))
     if len(history) <= summarize_length:
         return history
 
@@ -79,12 +79,22 @@ def delete_document(file_path: str):
 
 
 def read_document(file_path: str) -> str:
-    """读取文档内容（支持文本类格式 txt/md）。"""
+    """读取文档内容（支持 txt / md / docx / pdf）。"""
     from pathlib import Path
+    path = Path(file_path)
+    ext = path.suffix.lower()
     try:
-        return Path(file_path).read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        return "（二进制文件，无法直接预览）"
+        if ext == ".docx":
+            import docx
+            document = docx.Document(str(path))
+            return "\n\n".join(p.text for p in document.paragraphs if p.text.strip())
+        if ext == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(str(path))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            return text.replace("\n", "  \n")
+        # txt / md 等文本类格式
+        return path.read_text(encoding="utf-8")
     except Exception as e:
         return f"（读取失败：{e}）"
 
@@ -100,7 +110,7 @@ def show_document(name: str, content: str):
 @st.dialog("设置")
 def settings_dialog():
     current_k = st.session_state.get("k_override", rag_conf["k"])
-    current_summarize = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 6))
+    current_summarize = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 10))
 
     new_k = st.slider("每次检索返回多少条", 1, 10, current_k)
     new_summarize = st.slider("历史多少条后压缩", 2, 50, current_summarize)
@@ -144,24 +154,26 @@ with st.sidebar:
     if st.button("⚙️ 设置", use_container_width=True):
         settings_dialog()
 
+    # 上传器 key 含重置计数：删除文档时自增，换 key 清空上传器，
+    # 避免被删除文件的上传残留状态在 rerun 时重新写回
+    if "uploader_reset" not in st.session_state:
+        st.session_state.uploader_reset = 0
+
     st.header("文档管理")
     uploaded_files = st.file_uploader(
         "上传文档",
         type=["txt", "pdf", "docx", "md"],  # 支持的文件类型
-        accept_multiple_files=True  # 允许一次传多个
+        accept_multiple_files=True,  # 允许一次传多个
+        key=f"uploader_{st.session_state.uploader_reset}",
     )
 
-    # 保存文件到test_data里
-    if uploaded_files:
-        for file in uploaded_files:
-            save_path = BASE_DIR / "test_data" / file.name
-            # 避免重复上传
-            if not save_path.exists():
-                with open(save_path, "wb") as f:
-                    f.write(file.getbuffer())
-                st.success(f"已上传: {file.name}")
-            else:
-                st.warning(f"文件已存在: {file.name}")
+    # 保存文件到 test_data 里（已存在的静默跳过，避免每次 rerun 重复提示）
+    for file in (uploaded_files or []):
+        save_path = BASE_DIR / "test_data" / file.name
+        if not save_path.exists():
+            with open(save_path, "wb") as f:
+                f.write(file.getbuffer())
+            st.toast(f"已上传: {file.name}")
 
     st.divider()
     # 重新加载
@@ -194,6 +206,8 @@ with st.sidebar:
                         st.write(f"删除「{doc['name']}」？")
                         if st.button("确认删除", key=f"confirm_del_{doc['name']}"):
                             delete_document(doc["path"])
+                            # 清空上传器，避免被删文件的上传残留状态重新写回
+                            st.session_state.uploader_reset += 1
                             st.rerun()
         else:
             st.caption("暂无文档，可上传或运行生成脚本")

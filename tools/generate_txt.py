@@ -1,7 +1,7 @@
 """
-文件名：generate_test_data.py
-介绍：批量调用 LLM 生成中文长文档，用于扩充 test_data 测试语料。
-用法：在项目根目录执行 python -m tools.generate_test_data
+文件名：generate_txt.py
+介绍：批量调用 LLM 生成中文长文档（.txt），用于扩充 test_data 测试语料。
+用法：在项目根目录执行 python -m tools.generate_txt
 """
 import time
 from pathlib import Path
