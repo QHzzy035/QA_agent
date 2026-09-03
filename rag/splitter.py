@@ -10,6 +10,6 @@ from tools.config_loader import rag_conf
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=rag_conf["splitter"]["chunk_size"],
     chunk_overlap=rag_conf["splitter"]["chunk_overlap"],
-    separators=[".",",","!","?","。","，","！","？","\n","\n\n"," ",""],
+    separators=[".",",","!","?","。","，","！","？","\n\n","\n"," ",""],
     length_function=len
 )

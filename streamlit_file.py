@@ -317,8 +317,9 @@ if user_input:
 
             except Exception as e:
                 # 如果 stream 失败，回退到 invoke
+                prompt_text, _ = new_prompt(user_input)
                 response = agent.invoke({
-                    "messages": [HumanMessage(new_prompt(user_input))],
+                    "messages": [HumanMessage(prompt_text)],
                 })
                 full_response = response["messages"][-1].content
 

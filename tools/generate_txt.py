@@ -6,9 +6,8 @@
 import time
 from pathlib import Path
 
-from langchain.chat_models import init_chat_model
-
-from tools.config_loader import BASE_DIR, LLM_conf
+from model.factory import chat_model
+from tools.config_loader import BASE_DIR
 
 TEST_DATA_DIR = BASE_DIR / "test_data"
 
@@ -63,7 +62,7 @@ PROMPT_TEMPLATE = """你是一名专业的中文科普/技术内容作者。请�
 
 直接输出文章正文，不要输出任何解释性文字。"""
 
-model = init_chat_model(model=LLM_conf["chat_model_name"])
+model = chat_model
 
 
 def generate_doc(topic: str, guide: str) -> str:

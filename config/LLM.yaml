@@ -1,5 +1,6 @@
 # 模型配置
 chat_model_name: "deepseek-chat"
 summarize_model_name: "deepseek-chat"
+rewrite_model_name: "deepseek-chat"
 # 对话历史总结阈值：历史消息超过该条数时，把更早的对话总结压缩（设为很大的值如 999 可关闭总结、保留完整历史）
 history_summarize_length: 10
