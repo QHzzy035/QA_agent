@@ -5,16 +5,13 @@
 # 依赖库导入
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
-from langchain.chat_models import init_chat_model
 # 依赖文件导入
 from agent import agent
 from tools.config_loader import LLM_conf, BASE_DIR, rag_conf
 from rag.connected_prompts import new_prompt
-from rag.loader import loader
-from rag.splitter import splitter
 from rag.retriever import chroma
-
-summarize_model = init_chat_model(model=LLM_conf["summarize_model_name"])
+from model.factory import summarize_model
+from rag.indexer import incremental_index
 
 # 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
 def summarize_history(history: list, summarize_length: int = None):
@@ -176,15 +173,14 @@ with st.sidebar:
             st.toast(f"已上传: {file.name}")
 
     st.divider()
-    # 重新加载
+    # 重新加载（增量索引）
     if st.button("🔄 重新索引文档库"):
         with st.spinner("正在处理文档..."):
-            # 清空旧数据，重新加载
-            documents = loader.load()
-            doc_chunks = splitter.split_documents(documents)
-            chroma.reset_collection()
-            chroma.add_documents(doc_chunks)
-            st.success("文档库已更新！")
+            stats = incremental_index()
+            msg = (f"文档库已更新：新增 {len(stats['added'])} 个，"
+                   f"变更 {len(stats['updated'])} 个，删除 {len(stats['removed'])} 个，"
+                   f"跳过 {stats['skipped']} 个")
+            st.success(msg)
 
     st.divider()
     # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）
@@ -291,6 +287,7 @@ if user_input:
                 for chunk in agent.stream(
                     {"messages": history + [current_message]},
                     stream_mode="messages",
+                    context={"mode": "normal"},
                 ):
                     if isinstance(chunk, tuple):
                         msg, metadata = chunk

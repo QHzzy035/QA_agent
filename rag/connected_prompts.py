@@ -4,14 +4,12 @@
 """
 # 依赖库导入
 from pathlib import Path
-from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 # 依赖文件导入
 from rag.retriever import retriever
-from tools.config_loader import LLM_conf
+from model.factory import rewrite_model
 
-# 查询改写模型（复用主对话模型）
-rewrite_model = init_chat_model(model=LLM_conf["chat_model_name"])
+# 查询改写模型（复用主对话模型，由 model/factory.py 统一创建）
 
 # 明显不需要检索文档库的问题（用简单规则识别，避免 LLM 判断把"通用知识"误判为不需要）
 NO_RETRIEVAL_PATTERNS = [

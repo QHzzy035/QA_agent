@@ -13,3 +13,7 @@ wheels/
 .env
 chroma_data/
 test_data/
+
+# Runtime artifacts
+logs/
+index_record.json

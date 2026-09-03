@@ -84,6 +84,7 @@ streamlit run streamlit_file.py
 ```
 QA Agent/
 ├── agent.py                 # 智能体定义
+├── middleware.py            # 智能体中间件（工具监控/日志/动态提示词）
 ├── streamlit_file.py        # Web 界面
 ├── pyproject.toml           # 项目依赖配置（uv 管理）
 ├── uv.lock                  # 依赖锁文件
@@ -97,16 +98,21 @@ QA Agent/
 │   ├── LLM.yaml             #   大模型配置
 │   ├── rag.yaml             #   RAG 检索配置
 │   └── tavily.yaml          #   联网搜索配置
+├── model/
+│   └── factory.py           # 模型工厂（聊天/总结/改写/嵌入统一创建）
 ├── tools/
 │   ├── config_loader.py     # 配置加载工具
+│   ├── logger_handler.py    # 结构化日志
 │   ├── generate_txt.py      # 测试数据生成脚本（txt）
 │   ├── generate_md.py       # 测试数据生成脚本（md）
 │   ├── generate_docx.py     # 测试数据生成脚本（docx）
 │   └── generate_pdf.py      # 测试数据生成脚本（pdf）
 ├── prompts/
-│   └── system_prompts.txt   # 系统提示词
+│   ├── system_prompts.txt   # 系统提示词（普通问答模式）
+│   ├── summary_prompt.txt   # 系统提示词（精读总结模式）
+│   └── report_prompt.txt    # 系统提示词（报告生成模式）
 ├── rag/
-│   ├── loader.py            # 文档加载
+│   ├── indexer.py           # 增量索引
 │   ├── splitter.py          # 文档切割
 │   ├── retriever.py         # 向量检索
 │   └── connected_prompts.py # 提示词拼接

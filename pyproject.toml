@@ -1,7 +1,7 @@
 [project]
 name = "qa-agent"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.1.0"
+description = "基于 RAG 的私人知识库问答助手（LangChain + ChromaDB + Streamlit）"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
