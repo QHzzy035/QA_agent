@@ -148,25 +148,42 @@ with st.sidebar:
             st.toast(f"已上传: {file.name}")
 
     st.divider()
-    # 重新加载（增量索引）
-    if st.button("🔄 重新索引文档库"):
+    data_dir = resolve_data_dir()
+
+    # 重新索引 + 在文件管理器中打开文档目录，两个按钮并排一行。
+    # 打开动作由运行 Streamlit 的机器执行（浏览器出于安全不允许网页访问本地
+    # 文件系统），因此本地可用、云端会失败——失败时给出完整路径让人自己去找。
+    # 结果提示渲染在列外面，避免长消息被挤进窄列里。
+    col_reindex, col_open = st.columns([3, 2])
+    with col_reindex:
+        reindex_clicked = st.button("🔄 重新索引文档库", use_container_width=True)
+    with col_open:
+        open_clicked = st.button(
+            "打开文件夹 📂",
+            help=f"在文件管理器中打开文档目录\n{data_dir}",
+            use_container_width=True,
+        )
+
+    if reindex_clicked:
         with st.spinner("正在处理文档..."):
             stats = incremental_index()
-            msg = (f"文档库已更新：新增 {len(stats['added'])} 个，"
+        st.success(f"文档库已更新：新增 {len(stats['added'])} 个，"
                    f"变更 {len(stats['updated'])} 个，删除 {len(stats['removed'])} 个，"
                    f"跳过 {stats['skipped']} 个")
-            st.success(msg)
-            if stats["failed"]:
-                names = "、".join(Path(p).name for p in stats["failed"])
-                st.warning(f"以下 {len(stats['failed'])} 个文档解析失败，已跳过：{names}")
+        if stats["failed"]:
+            names = "、".join(Path(p).name for p in stats["failed"])
+            st.warning(f"以下 {len(stats['failed'])} 个文档解析失败，已跳过：{names}")
+
+    if open_clicked:
+        opened, detail = open_in_file_manager(data_dir)
+        if opened:
+            st.toast("已在文件管理器中打开", icon="📂")
+        else:
+            st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
 
     st.divider()
-    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）。
-    # 右侧的 📂 与「文档库」同一行，点击即在系统文件管理器中定位到文档目录。
-    # 注：浏览器不允许网页访问本地文件系统，这一步由运行 Streamlit 的机器执行，
-    #     所以本地可用、云端会失败——失败时给出完整路径让人自己去找。
-    col_lib, col_open = st.columns([6, 1])
-    with col_lib, st.expander("📚 文档库"):
+    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）
+    with st.expander("📚 文档库"):
         doc_list = get_document_list()
         if doc_list:
             for doc in doc_list:
@@ -189,16 +206,6 @@ with st.sidebar:
                             st.rerun()
         else:
             st.caption("暂无文档，可上传或运行生成脚本")
-
-    with col_open:
-        data_dir = resolve_data_dir()
-        if st.button("📂", help=f"在文件管理器中打开文档目录\n{data_dir}",
-                     use_container_width=True):
-            opened, detail = open_in_file_manager(data_dir)
-            if opened:
-                st.toast("已在文件管理器中打开", icon="📂")
-            else:
-                st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
 
 # 初始化会话历史
 if "messages" not in st.session_state:

@@ -45,7 +45,8 @@ def test_expected_widgets_are_present(app):
     assert any("重新索引" in label for label in button_labels), \
         f"侧边栏缺少「重新索引」按钮，实际有：{button_labels}"
     assert any("设置" in label for label in button_labels)
-    assert "📂" in button_labels, "侧边栏缺少「打开文档目录」按钮"
+    assert any("打开文件夹" in label for label in button_labels), \
+        f"侧边栏缺少「打开文件夹」按钮，前几个是：{button_labels[:6]}"
 
     assert app.sidebar.file_uploader, "侧边栏缺少上传控件"
     assert app.chat_input, "主区域缺少对话框"
