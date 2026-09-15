@@ -7,9 +7,10 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 # 依赖文件导入
 from rag.retriever import retriever
-from model.factory import rewrite_model
 
 # 查询改写模型（复用主对话模型，由 model/factory.py 统一创建）
+# 说明：改为在 rewrite_query 内部延迟导入，避免本模块被导入时（例如
+#      单测只用到 is_no_retrieval）就强制要求 DEEPSEEK_API_KEY。
 
 # 明显不需要检索文档库的问题（用简单规则识别，避免 LLM 判断把"通用知识"误判为不需要）
 NO_RETRIEVAL_PATTERNS = [
@@ -30,6 +31,8 @@ def is_no_retrieval(query: str) -> bool:
 
 def rewrite_query(query: str, history: list) -> str:
     """结合对话历史，把用户问题里的指代/省略改写成独立完整的检索查询。"""
+    from model.factory import rewrite_model
+
     history_text = ""
     for msg in history:
         if isinstance(msg, HumanMessage):

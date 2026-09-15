@@ -4,6 +4,11 @@
       之前模型散落在 agent.py / connected_prompts.py / streamlit_file.py / retriever.py
       以及 tools/generate_*.py 等多处，且混用 create_agent(字符串) 与 init_chat_model 两种方式。
       工厂把模型创建集中在一点，换模型只改 config 里的 YAML。
+
+注意：本模块的模型实例采用惰性创建（见文件末尾 __getattr__）。
+      模块顶层不再直接实例化模型，否则任何 import 本模块的代码都会立刻要求
+      DEEPSEEK_API_KEY / DASHSCOPE_API_KEY，导致纯逻辑模块无法在无 Key 环境下导入、
+      单元测试必须依赖真实 Key。`from model.factory import chat_model` 的写法保持不变。
 """
 # 依赖库导入
 from langchain.chat_models import init_chat_model
@@ -43,8 +48,18 @@ class EmbeddingsFactory:
         return cls._instance
 
 
-# 各角色模型实例（供其他模块直接导入）
-chat_model = ChatModelFactory.get("chat")
-summarize_model = ChatModelFactory.get("summarize")
-rewrite_model = ChatModelFactory.get("rewrite")
-embed_model = EmbeddingsFactory.get()
+# 各角色模型实例（供其他模块直接导入）——惰性创建，首次访问时才真正实例化
+_LAZY_ROLES = {
+    "chat_model": "chat",
+    "summarize_model": "summarize",
+    "rewrite_model": "rewrite",
+}
+
+
+def __getattr__(name: str):
+    """PEP 562 模块级惰性属性：把顶层实例化改成按需创建。"""
+    if name in _LAZY_ROLES:
+        return ChatModelFactory.get(_LAZY_ROLES[name])
+    if name == "embed_model":
+        return EmbeddingsFactory.get()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

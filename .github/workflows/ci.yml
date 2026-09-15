@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: 安装依赖
+        # 锁文件里已经固化了每个包的下载地址（本项目走清华镜像，国内快）。
+        # uv 会直接按锁文件里的 URL 拉取，所以这里不需要、也不能再用
+        # --default-index 去覆盖索引。
+        run: uv sync --frozen
+
+      - name: 运行测试
+        # 测试不依赖任何 API Key / 网络 / 真实向量库，无需配置 secrets
+        run: uv run --frozen pytest -q
+
+      - name: 校验语法
+        run: uv run --frozen python -m compileall -q agent.py middleware.py streamlit_file.py model rag tools tests
+
+      - name: 校验核心模块可在无 Key 环境下导入
+        # 模块级副作用（import 时就要求 API Key）会让应用在别人机器上直接起不来，
+        # 这里显式断言「导入纯逻辑模块不需要任何凭据」。
+        env:
+          DASHSCOPE_API_KEY: ""
+          DEEPSEEK_API_KEY: ""
+          TAVILY_API_KEY: ""
+        run: |
+          uv run --frozen python -c "
+          from middleware import MODE_PROMPTS
+          from rag.indexer import incremental_index
+          from rag.connected_prompts import is_no_retrieval
+          from tools.document_service import read_document
+          from tools.pdf_writer import write_pdf
+          print('核心模块导入正常，无模块级凭据依赖')
+          "

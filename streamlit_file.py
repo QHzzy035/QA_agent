@@ -4,13 +4,13 @@
 """
 # 依赖库导入
 import streamlit as st
+from pathlib import Path
 from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
 # 依赖文件导入
 from agent import agent
 from tools.config_loader import LLM_conf, BASE_DIR, rag_conf
+from tools.document_service import read_document, get_document_list, delete_document
 from rag.connected_prompts import new_prompt
-from rag.retriever import chroma
-from model.factory import summarize_model
 from rag.indexer import incremental_index
 
 # 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
@@ -19,6 +19,8 @@ def summarize_history(history: list, summarize_length: int = None):
         summarize_length = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 10))
     if len(history) <= summarize_length:
         return history
+
+    from model.factory import summarize_model
 
     old_msg = ""
     old_history = history[:-summarize_length]
@@ -40,60 +42,6 @@ def summarize_history(history: list, summarize_length: int = None):
     )
 
     return [summarize] + recent_history
-
-
-def get_document_list():
-    """返回 test_data 目录下的文档列表，含文件名和索引 chunk 数。"""
-    import os
-    test_data_dir = BASE_DIR / "test_data"
-    files = sorted(test_data_dir.glob("*.*"))
-
-    # 从向量库统计每个文档（按 source 路径）的 chunk 数
-    source_counts = {}
-    metadatas = chroma.get(include=["metadatas"]).get("metadatas", [])
-    for meta in metadatas:
-        source = os.path.normpath(meta.get("source", ""))
-        source_counts[source] = source_counts.get(source, 0) + 1
-
-    doc_list = []
-    for f in files:
-        if f.is_file():
-            chunks = source_counts.get(os.path.normpath(str(f)), 0)
-            doc_list.append({"name": f.name, "chunks": chunks, "indexed": chunks > 0, "path": str(f)})
-    return doc_list
-
-
-def delete_document(file_path: str):
-    """删除文档：从向量库移除对应 chunk，并从磁盘删除文件。"""
-    import os
-    from pathlib import Path
-    # 规范化路径，与向量库 metadata 中的 source 保持一致
-    normalized = os.path.normpath(file_path)
-    # 1. 从向量库删除该文档的所有 chunk（按 source 路径）
-    chroma.delete(where={"source": normalized})
-    # 2. 从磁盘删除文件
-    Path(file_path).unlink(missing_ok=True)
-
-
-def read_document(file_path: str) -> str:
-    """读取文档内容（支持 txt / md / docx / pdf）。"""
-    from pathlib import Path
-    path = Path(file_path)
-    ext = path.suffix.lower()
-    try:
-        if ext == ".docx":
-            import docx
-            document = docx.Document(str(path))
-            return "\n\n".join(p.text for p in document.paragraphs if p.text.strip())
-        if ext == ".pdf":
-            from pypdf import PdfReader
-            reader = PdfReader(str(path))
-            text = "\n".join(page.extract_text() or "" for page in reader.pages)
-            return text.replace("\n", "  \n")
-        # txt / md 等文本类格式
-        return path.read_text(encoding="utf-8")
-    except Exception as e:
-        return f"（读取失败：{e}）"
 
 
 @st.dialog("文档内容")
@@ -181,6 +129,9 @@ with st.sidebar:
                    f"变更 {len(stats['updated'])} 个，删除 {len(stats['removed'])} 个，"
                    f"跳过 {stats['skipped']} 个")
             st.success(msg)
+            if stats["failed"]:
+                names = "、".join(Path(p).name for p in stats["failed"])
+                st.warning(f"以下 {len(stats['failed'])} 个文档解析失败，已跳过：{names}")
 
     st.divider()
     # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）

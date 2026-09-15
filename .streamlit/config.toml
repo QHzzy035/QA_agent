@@ -1,4 +1,6 @@
 [server]
-# 禁用文件监控：本项目通过 unstructured 引入了 transformers/torch 巨型依赖，
-# streamlit 的 fileWatcher 会扫描这些模块的海量文件，在 Windows 上耗尽句柄导致进程被系统杀死。
+# 禁用文件监控：streamlit 的 fileWatcher 会扫描虚拟环境里的海量文件，
+# 在 Windows 上曾耗尽文件句柄导致进程被系统杀死。
+# 注：v1.2.0 移除 unstructured 后依赖树已大幅缩小（加载模块数 2574 -> 311），
+# 但保守起见先保留该设置；如需热重载可改为 "auto" 自行验证。
 fileWatcherType = "none"

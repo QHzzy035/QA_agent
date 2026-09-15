@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from model.factory import chat_model
 from tools.config_loader import BASE_DIR
 
 TEST_DATA_DIR = BASE_DIR / "test_data"
@@ -41,12 +40,14 @@ PROMPT_TEMPLATE = """你是一名专业的中文科普/技术内容作者。请�
 
 直接输出文章正文，不要输出任何解释性文字。"""
 
-model = chat_model
 
 
 def generate_doc(topic: str, guide: str) -> str:
+    # 延迟导入模型：避免本模块被导入时就要求 DEEPSEEK_API_KEY
+    from model.factory import chat_model
+
     prompt = PROMPT_TEMPLATE.format(topic=topic, guide=guide)
-    result = model.invoke(prompt)
+    result = chat_model.invoke(prompt)
     return result.content.strip()
 
 

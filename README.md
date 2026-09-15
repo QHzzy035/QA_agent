@@ -93,38 +93,61 @@ streamlit run streamlit_file.py
 
 ```
 QA Agent/
-├── agent.py                 # 智能体定义
-├── middleware.py            # 智能体中间件（工具监控/日志/动态提示词）
-├── streamlit_file.py        # Web 界面
-├── pyproject.toml           # 项目依赖配置（uv 管理）
-├── uv.lock                  # 依赖锁文件
-├── .python-version          # Python 版本要求
+├── agent.py                     # 智能体定义
+├── middleware.py                # 智能体中间件（工具监控/日志/动态提示词）
+├── streamlit_file.py            # Web 界面
+├── pyproject.toml               # 项目依赖配置（uv 管理）
+├── uv.lock                      # 依赖锁文件
+├── .python-version              # Python 版本要求
+├── .github/
+│   └── workflows/ci.yml         # CI：跑测试 + 校验模块可在无 Key 环境导入
+├── tests/                       # 单元测试（不依赖 API Key / 网络 / 真实向量库）
+│   ├── conftest.py              #   公共假对象（向量库 / 切分器 / 文档加载）
+│   ├── test_indexer.py          #   增量索引判定与容错
+│   ├── test_document_service.py #   多格式抽取、编码自适应、CRLF
+│   ├── test_query_rules.py      #   检索前置规则
+│   ├── test_factory.py          #   模型工厂选型与缓存
+│   ├── test_pdf_writer.py       #   PDF 生成器结构有效性
+│   ├── test_prompts.py          #   提示词与模式映射
+│   └── test_app_smoke.py        #   界面冒烟（需 API Key，无则跳过）
 ├── assets/
-│   ├── doc_manage_demo.png  # 文档库管理截图
-│   └── dialog_demo.png      # 知识库对话截图
+│   ├── doc_manage_demo.png      # 文档库管理截图
+│   └── dialog_demo.png          # 知识库对话截图
 ├── .streamlit/
-│   └── config.toml          # Streamlit 配置
-├── config/                  # 配置目录（YAML 格式）
-│   ├── LLM.yaml             #   大模型配置
-│   ├── rag.yaml             #   RAG 检索配置
-│   └── tavily.yaml          #   联网搜索配置
+│   └── config.toml              # Streamlit 配置
+├── config/                      # 配置目录（YAML 格式）
+│   ├── LLM.yaml                 #   大模型配置
+│   ├── rag.yaml                 #   RAG 检索配置
+│   └── tavily.yaml              #   联网搜索配置
 ├── model/
-│   └── factory.py           # 模型工厂（聊天/总结/改写/嵌入统一创建）
+│   └── factory.py               # 模型工厂（聊天/总结/改写/嵌入统一创建，惰性实例化）
 ├── tools/
-│   ├── config_loader.py     # 配置加载工具
-│   ├── logger_handler.py    # 结构化日志
-│   ├── generate_txt.py      # 测试数据生成脚本（txt）
-│   ├── generate_md.py       # 测试数据生成脚本（md）
-│   ├── generate_docx.py     # 测试数据生成脚本（docx）
-│   └── generate_pdf.py      # 测试数据生成脚本（pdf）
+│   ├── config_loader.py         # 配置加载工具
+│   ├── logger_handler.py        # 结构化日志
+│   ├── document_service.py      # 文档抽取/列表/删除（索引与界面预览共用同一实现）
+│   ├── pdf_writer.py            # 纯标准库 PDF 生成（中文字体内嵌）
+│   ├── generate_txt.py          # 测试数据生成脚本（txt）
+│   ├── generate_md.py           # 测试数据生成脚本（md）
+│   ├── generate_docx.py         # 测试数据生成脚本（docx）
+│   └── generate_pdf.py          # 测试数据生成脚本（pdf）
 ├── prompts/
-│   ├── system_prompts.txt   # 系统提示词（普通问答模式）
-│   ├── summary_prompt.txt   # 系统提示词（精读总结模式）
-│   └── report_prompt.txt    # 系统提示词（报告生成模式）
+│   ├── system_prompts.txt       # 系统提示词（普通问答模式）
+│   ├── summary_prompt.txt       # 系统提示词（精读总结模式）
+│   └── report_prompt.txt        # 系统提示词（报告生成模式）
 ├── rag/
-│   ├── indexer.py           # 增量索引
-│   ├── splitter.py          # 文档切割
-│   ├── retriever.py         # 向量检索
-│   └── connected_prompts.py # 提示词拼接
-└── test_data/               # 文档存放目录
+│   ├── indexer.py               # 增量索引
+│   ├── splitter.py              # 文档切割
+│   ├── retriever.py             # 向量检索
+│   └── connected_prompts.py     # 提示词拼接
+└── test_data/                   # 文档存放目录
 ```
+
+## 开发
+
+```bash
+uv sync              # 安装依赖（含开发依赖）
+uv run pytest        # 运行测试（无需 API Key 也可运行）
+```
+
+测试覆盖增量索引判定、多格式文档抽取、模型工厂与提示词一致性等，
+不依赖 API Key、网络与真实向量库，可直接在 CI 中运行。
