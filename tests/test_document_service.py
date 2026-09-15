@@ -4,13 +4,15 @@
       抽出来之后，四种格式的读取分支与失败兜底都能直接覆盖。
 """
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from tools.document_service import (
     read_document, get_document_list, delete_document, extract_documents,
-    is_store_empty,
+    is_store_empty, open_in_file_manager,
 )
 from tools.pdf_writer import find_cjk_font, write_pdf
 
@@ -165,6 +167,69 @@ class TestReadDocument:
         f = tmp_path / "empty.txt"
         f.write_text("   \n\n  ", encoding="utf-8")
         assert "为空" in read_document(str(f))
+
+
+class TestOpenInFileManager:
+    """打开文档目录。
+
+    这一步由运行 Streamlit 的机器执行（浏览器不允许网页碰本地文件系统），
+    所以本地可用、云端会失败——失败必须是「返回 False + 说明」，不能抛异常，
+    否则用户点一下按钮整个页面就崩了。
+    """
+
+    def test_missing_directory_reports_failure(self, tmp_path):
+        opened, detail = open_in_file_manager(tmp_path / "不存在的目录")
+
+        assert opened is False
+        assert "目录不存在" in detail
+
+    def test_a_file_is_not_a_valid_target(self, tmp_path):
+        """传进来的必须是目录，不能是文件。"""
+        f = tmp_path / "a.txt"
+        f.write_text("x", encoding="utf-8")
+
+        assert open_in_file_manager(f)[0] is False
+
+    def test_windows_uses_startfile(self, tmp_path, monkeypatch):
+        calls = []
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(os, "startfile", lambda p: calls.append(p), raising=False)
+
+        opened, _ = open_in_file_manager(tmp_path)
+
+        assert opened is True
+        assert calls == [str(tmp_path)]
+
+    def test_macos_uses_open(self, tmp_path, monkeypatch):
+        calls = []
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: calls.append(cmd))
+
+        open_in_file_manager(tmp_path)
+
+        assert calls[0][0] == "open"
+
+    def test_linux_uses_xdg_open(self, tmp_path, monkeypatch):
+        calls = []
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: calls.append(cmd))
+
+        open_in_file_manager(tmp_path)
+
+        assert calls[0][0] == "xdg-open"
+
+    def test_failure_is_returned_not_raised(self, tmp_path, monkeypatch):
+        """云端服务器没有图形界面，xdg-open 会失败——不能让它冒到页面上。"""
+        def boom(*args, **kwargs):
+            raise OSError("no display")
+
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(subprocess, "Popen", boom)
+
+        opened, detail = open_in_file_manager(tmp_path)
+
+        assert opened is False
+        assert "OSError" in detail
 
 
 class TestIsStoreEmpty:

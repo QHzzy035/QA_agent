@@ -11,7 +11,7 @@ from agent import agent
 from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir
 from tools.document_service import (
     read_document, get_document_list, delete_document,
-    is_store_empty, SUPPORTED_EXTENSIONS,
+    is_store_empty, open_in_file_manager, SUPPORTED_EXTENSIONS,
 )
 from rag.connected_prompts import new_prompt
 from rag.indexer import incremental_index
@@ -132,6 +132,26 @@ with st.sidebar:
         st.session_state.uploader_reset = 0
 
     st.header("文档管理")
+
+    # 文档目录：显示位置 + 一键在系统文件管理器中打开
+    # 打开动作是由运行 Streamlit 的机器执行的（浏览器不允许网页碰本地文件系统），
+    # 所以本地跑时开的是你自己的文件夹，云端部署时服务器没有图形界面会失败——
+    # 失败时把完整路径显示出来，让人能自己去找。
+    data_dir = resolve_data_dir()
+    col_dir, col_open = st.columns([5, 1], vertical_alignment="center")
+    with col_dir:
+        st.markdown(
+            f"<span class='doc-name' title='{data_dir}'>📁 {data_dir}</span>",
+            unsafe_allow_html=True,
+        )
+    with col_open:
+        if st.button("📂", help="在文件管理器中打开文档目录", use_container_width=True):
+            opened, detail = open_in_file_manager(data_dir)
+            if opened:
+                st.toast("已在文件管理器中打开", icon="📂")
+            else:
+                st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
+
     uploaded_files = st.file_uploader(
         "上传文档",
         type=["txt", "pdf", "docx", "md"],  # 支持的文件类型

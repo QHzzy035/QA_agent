@@ -141,6 +141,40 @@ def read_document(file_path: str) -> str:
     return "\n\n".join(parts)
 
 
+def open_in_file_manager(path) -> tuple[bool, str]:
+    """在系统文件管理器中打开目录，返回 (是否成功, 说明)。
+
+    只能在「运行 Streamlit 的那台机器」上打开——浏览器出于安全不允许网页
+    直接访问本地文件系统，所以这一步是由服务端进程执行的。
+    本地 `streamlit run` 时打开的是你自己电脑上的文件夹；部署到云端时
+    会去开服务器上的目录，而服务器通常没有图形界面，因此调用方必须对
+    失败做降级处理（把路径显示出来让用户自己去找）。
+
+    打开的是调用方算出来的目录，不接受外部传入的任意路径，
+    不存在「被诱导打开任意文件」的风险。
+    """
+    import subprocess
+    import sys
+
+    path = Path(path)
+    if not path.is_dir():
+        return False, f"目录不存在：{path}"
+
+    try:
+        if sys.platform == "win32":
+            os.startfile(str(path))  # type: ignore[attr-defined]  # Windows 专有
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["xdg-open", str(path)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+    return True, str(path)
+
+
 def is_store_empty(chroma=None) -> bool:
     """向量库是否为空。
 
