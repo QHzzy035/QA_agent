@@ -145,3 +145,50 @@ class TestEvaluate:
 
     def test_empty_records(self):
         assert evaluate([], k=3) == {"count": 0, "k": 3}
+
+
+class TestRenderMarkdown:
+    """报告是给人看的，格式错了不会报错，只会让人读出一个错误的结论。"""
+
+    def _records(self):
+        return [
+            {"query": "q1", "expected": ["a"], "retrieved": ["a", "b"]},
+            {"query": "q2", "expected": ["c"], "retrieved": ["x", "y"]},
+        ]
+
+    def test_contains_one_row_per_k(self):
+        from eval.run_eval import render_markdown
+
+        text = render_markdown([evaluate(self._records(), k) for k in (1, 3, 5)])
+
+        for k in (1, 3, 5):
+            assert f"| {k} |" in text
+
+    def test_mrr_and_map_are_outside_the_table(self):
+        """MRR/MAP 不随 K 截断，放进 @K 的表里每行都一样，会被误读成 bug。"""
+        from eval.run_eval import render_markdown
+
+        text = render_markdown([evaluate(self._records(), k) for k in (1, 3)])
+        lines = text.splitlines()
+
+        header = next(l for l in lines if l.startswith("| K |"))
+        # 注意不能只判断 set(l) <= set("|-")：空行的字符集是空集，任何集合都包含它
+        sep = next(i for i, l in enumerate(lines)
+                   if l.strip() and set(l) <= set("|-"))
+        rows = []
+        for line in lines[sep + 1:]:
+            if not line.startswith("|"):
+                break
+            rows.append(line)
+
+        assert rows, "表格应当有数据行"
+        assert "MRR" not in header, "MRR 不应出现在表头"
+        assert all("MRR" not in r for r in rows), "MRR 不应出现在表格行里"
+        assert "MRR" in text, "但 MRR 必须仍然被报告出来"
+
+    def test_reports_miss_count(self):
+        from eval.run_eval import render_markdown
+
+        text = render_markdown([evaluate(self._records(), k=2)])
+
+        assert "| 2 | 0.500 | 0.500 | 0.250 | 1 |" in text

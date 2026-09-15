@@ -1,0 +1,587 @@
+{
+  "records": [
+    {
+      "query": "人工智能发展史上经历过几次低谷？",
+      "expected": [
+        "ai_history"
+      ],
+      "retrieved": [
+        "ai_history",
+        "internet_of_things",
+        "computer_vision",
+        "recommendation_system"
+      ]
+    },
+    {
+      "query": "为什么黑洞的事件视界一旦越过就出不来了？",
+      "expected": [
+        "black_hole"
+      ],
+      "retrieved": [
+        "black_hole",
+        "three_body",
+        "gene_editing_crispr",
+        "quantum_computing"
+      ]
+    },
+    {
+      "query": "区块链上的数据为什么改不了？",
+      "expected": [
+        "blockchain_basics"
+      ],
+      "retrieved": [
+        "blockchain_basics"
+      ]
+    },
+    {
+      "query": "唐诗和宋词在格律要求上有什么不一样？",
+      "expected": [
+        "classical_poetry"
+      ],
+      "retrieved": [
+        "classical_poetry",
+        "web_framework",
+        "prompt_engineering"
+      ]
+    },
+    {
+      "query": "全球变暖主要是人类活动造成的吗？",
+      "expected": [
+        "climate_change"
+      ],
+      "retrieved": [
+        "climate_change",
+        "renewable_energy",
+        "black_hole"
+      ]
+    },
+    {
+      "query": "IaaS、PaaS、SaaS 三者该怎么区分？",
+      "expected": [
+        "cloud_computing"
+      ],
+      "retrieved": [
+        "cloud_computing"
+      ]
+    },
+    {
+      "query": "咖啡豆烘得深一点和浅一点，喝起来有什么区别？",
+      "expected": [
+        "coffee_knowledge"
+      ],
+      "retrieved": [
+        "coffee_knowledge",
+        "machine_learning_algorithms",
+        "healthy_diet"
+      ]
+    },
+    {
+      "query": "目标检测和图像分类解决的是不是同一个问题？",
+      "expected": [
+        "computer_vision"
+      ],
+      "retrieved": [
+        "computer_vision"
+      ]
+    },
+    {
+      "query": "栈和队列在使用场景上有什么差别？",
+      "expected": [
+        "data_structure_algorithm"
+      ],
+      "retrieved": [
+        "data_structure_algorithm",
+        "sql_database",
+        "web_framework",
+        "python_advanced"
+      ]
+    },
+    {
+      "query": "容器和虚拟机相比省在哪里？",
+      "expected": [
+        "docker_container"
+      ],
+      "retrieved": [
+        "cloud_computing"
+      ]
+    },
+    {
+      "query": "什么是机会成本？能不能举个例子？",
+      "expected": [
+        "economics_principles"
+      ],
+      "retrieved": [
+        "economics_principles",
+        "blockchain_basics",
+        "climate_change",
+        "prompt_engineering",
+        "psychology_intro"
+      ]
+    },
+    {
+      "query": "机器是怎么把一段文字变成一串数字的？",
+      "expected": [
+        "embedding_models"
+      ],
+      "retrieved": [
+        "large_language_models",
+        "prompt_engineering",
+        "computer_vision"
+      ]
+    },
+    {
+      "query": "想减脂的话，该多做有氧还是多做力量训练？",
+      "expected": [
+        "fitness_exercise"
+      ],
+      "retrieved": [
+        "fitness_exercise",
+        "healthy_diet"
+      ]
+    },
+    {
+      "query": "基因编辑婴儿为什么会引起那么大争议？",
+      "expected": [
+        "gene_editing_crispr"
+      ],
+      "retrieved": [
+        "gene_editing_crispr",
+        "recommendation_system",
+        "healthy_diet"
+      ]
+    },
+    {
+      "query": "Git 里 merge 和 rebase 到底该用哪个？",
+      "expected": [
+        "git_version_control"
+      ],
+      "retrieved": [
+        "git_version_control",
+        "rag_basics",
+        "sql_database",
+        "prompt_engineering"
+      ]
+    },
+    {
+      "query": "每天都吃外卖的话，怎么尽量保证营养？",
+      "expected": [
+        "healthy_diet"
+      ],
+      "retrieved": [
+        "healthy_diet",
+        "travel_guide",
+        "pet_care",
+        "fitness_exercise"
+      ]
+    },
+    {
+      "query": "家里的智能设备之间靠什么协议通信？",
+      "expected": [
+        "internet_of_things"
+      ],
+      "retrieved": [
+        "internet_of_things"
+      ]
+    },
+    {
+      "query": "JavaScript 里怎么等一个网络请求返回再继续？",
+      "expected": [
+        "javascript_frontend"
+      ],
+      "retrieved": [
+        "javascript_frontend",
+        "python_advanced"
+      ]
+    },
+    {
+      "query": "大模型里的注意力机制到底在算什么？",
+      "expected": [
+        "large_language_models"
+      ],
+      "retrieved": [
+        "large_language_models"
+      ]
+    },
+    {
+      "query": "签劳动合同的时候要留意哪些条款？",
+      "expected": [
+        "legal_common_sense"
+      ],
+      "retrieved": [
+        "legal_common_sense",
+        "prompt_engineering",
+        "internet_of_things",
+        "personal_finance"
+      ]
+    },
+    {
+      "query": "服务器卡了，怎么快速看出是哪个进程在吃资源？",
+      "expected": [
+        "linux_commands"
+      ],
+      "retrieved": [
+        "linux_commands",
+        "sql_database",
+        "cloud_computing",
+        "git_version_control"
+      ]
+    },
+    {
+      "query": "过拟合是什么意思，怎么缓解？",
+      "expected": [
+        "machine_learning",
+        "machine_learning_algorithms"
+      ],
+      "retrieved": [
+        "machine_learning_algorithms",
+        "recommendation_system",
+        "prompt_engineering",
+        "psychology_intro"
+      ]
+    },
+    {
+      "query": "随机森林和支持向量机分别适合什么数据？",
+      "expected": [
+        "machine_learning_algorithms"
+      ],
+      "retrieved": [
+        "machine_learning_algorithms",
+        "recommendation_system"
+      ]
+    },
+    {
+      "query": "五四运动在中国近代史上意味着什么？",
+      "expected": [
+        "modern_chinese_history"
+      ],
+      "retrieved": [
+        "modern_chinese_history",
+        "gene_editing_crispr",
+        "classical_poetry",
+        "legal_common_sense"
+      ]
+    },
+    {
+      "query": "普通人怎么防范钓鱼网站和电信诈骗？",
+      "expected": [
+        "network_security"
+      ],
+      "retrieved": [
+        "legal_common_sense",
+        "network_security",
+        "travel_guide",
+        "personal_finance"
+      ]
+    },
+    {
+      "query": "手里有点闲钱，应该怎么分配比较稳妥？",
+      "expected": [
+        "personal_finance"
+      ],
+      "retrieved": [
+        "personal_finance",
+        "travel_guide",
+        "prompt_engineering"
+      ]
+    },
+    {
+      "query": "刚接回家的小猫要打哪些针？",
+      "expected": [
+        "pet_care"
+      ],
+      "retrieved": [
+        "pet_care",
+        "traditional_chinese_medicine",
+        "travel_guide",
+        "recommendation_system"
+      ]
+    },
+    {
+      "query": "为什么让模型一步一步想，效果会更好？",
+      "expected": [
+        "prompt_engineering"
+      ],
+      "retrieved": [
+        "prompt_engineering",
+        "computer_vision"
+      ]
+    },
+    {
+      "query": "买了一堆没用的东西之后又很后悔，这是什么心理？",
+      "expected": [
+        "psychology_intro"
+      ],
+      "retrieved": [
+        "psychology_intro",
+        "economics_principles",
+        "recommendation_system",
+        "prompt_engineering"
+      ]
+    },
+    {
+      "query": "Python 的装饰器是怎么做到不改原函数就加功能的？",
+      "expected": [
+        "python_advanced"
+      ],
+      "retrieved": [
+        "python_advanced",
+        "javascript_frontend",
+        "large_language_models"
+      ]
+    },
+    {
+      "query": "量子比特和普通比特最关键的区别是什么？",
+      "expected": [
+        "quantum_computing"
+      ],
+      "retrieved": [
+        "quantum_computing",
+        "network_security",
+        "blockchain_basics"
+      ]
+    },
+    {
+      "query": "RAG 是怎么减少模型一本正经胡说八道的？",
+      "expected": [
+        "rag_basics"
+      ],
+      "retrieved": [
+        "rag_basics",
+        "prompt_engineering",
+        "large_language_models"
+      ]
+    },
+    {
+      "query": "新用户没有任何历史行为，推荐系统怎么办？",
+      "expected": [
+        "recommendation_system"
+      ],
+      "retrieved": [
+        "recommendation_system"
+      ]
+    },
+    {
+      "query": "太阳能和风能各自最大的短板是什么？",
+      "expected": [
+        "renewable_energy"
+      ],
+      "retrieved": [
+        "renewable_energy"
+      ]
+    },
+    {
+      "query": "ROS 在机器人开发里扮演什么角色？",
+      "expected": [
+        "robotics_intro"
+      ],
+      "retrieved": [
+        "robotics_intro"
+      ]
+    },
+    {
+      "query": "为什么给数据库加了索引查询就快了？",
+      "expected": [
+        "sql_database"
+      ],
+      "retrieved": [
+        "sql_database",
+        "vector_database",
+        "git_version_control"
+      ]
+    },
+    {
+      "query": "《三体》主要讲了什么？",
+      "expected": [
+        "three_body"
+      ],
+      "retrieved": [
+        "three_body",
+        "blockchain_basics",
+        "black_hole",
+        "rag_basics",
+        "large_language_models"
+      ]
+    },
+    {
+      "query": "中医是怎么通过望闻问切判断病因的？",
+      "expected": [
+        "traditional_chinese_medicine"
+      ],
+      "retrieved": [
+        "traditional_chinese_medicine",
+        "travel_guide",
+        "psychology_intro"
+      ]
+    },
+    {
+      "query": "第一次出国自由行要提前准备些什么？",
+      "expected": [
+        "travel_guide"
+      ],
+      "retrieved": [
+        "travel_guide",
+        "renewable_energy",
+        "healthy_diet",
+        "prompt_engineering"
+      ]
+    },
+    {
+      "query": "向量数据库和 MySQL 这种有什么本质不同？",
+      "expected": [
+        "vector_database"
+      ],
+      "retrieved": [
+        "vector_database",
+        "sql_database",
+        "cloud_computing"
+      ]
+    },
+    {
+      "query": "做个小项目，Django、Flask、FastAPI 选哪个？",
+      "expected": [
+        "web_framework"
+      ],
+      "retrieved": [
+        "web_framework"
+      ]
+    },
+    {
+      "query": "理性主义和经验主义吵的到底是什么？",
+      "expected": [
+        "western_philosophy"
+      ],
+      "retrieved": [
+        "western_philosophy",
+        "rag_basics",
+        "psychology_intro",
+        "economics_principles",
+        "recommendation_system"
+      ]
+    },
+    {
+      "query": "世界上一共有哪几种主要气候类型？",
+      "expected": [
+        "world_geography"
+      ],
+      "retrieved": [
+        "world_geography",
+        "climate_change"
+      ]
+    },
+    {
+      "query": "刚学 Python，应该先掌握哪些基础语法？",
+      "expected": [
+        "python_tutorial"
+      ],
+      "retrieved": [
+        "python_tutorial",
+        "web_framework",
+        "git_version_control",
+        "large_language_models",
+        "javascript_frontend"
+      ]
+    }
+  ],
+  "summaries": [
+    {
+      "count": 44,
+      "k": 1,
+      "recall_at_k": 0.9204545454545454,
+      "hit_at_k": 0.9318181818181818,
+      "precision_at_k": 0.9318181818181818,
+      "mrr": 0.9431818181818182,
+      "map": 0.9318181818181818,
+      "misses": [
+        {
+          "query": "容器和虚拟机相比省在哪里？",
+          "expected": [
+            "docker_container"
+          ],
+          "retrieved": [
+            "cloud_computing"
+          ]
+        },
+        {
+          "query": "机器是怎么把一段文字变成一串数字的？",
+          "expected": [
+            "embedding_models"
+          ],
+          "retrieved": [
+            "large_language_models"
+          ]
+        },
+        {
+          "query": "普通人怎么防范钓鱼网站和电信诈骗？",
+          "expected": [
+            "network_security"
+          ],
+          "retrieved": [
+            "legal_common_sense"
+          ]
+        }
+      ]
+    },
+    {
+      "count": 44,
+      "k": 3,
+      "recall_at_k": 0.9431818181818182,
+      "hit_at_k": 0.9545454545454546,
+      "precision_at_k": 0.31818181818181834,
+      "mrr": 0.9431818181818182,
+      "map": 0.9318181818181818,
+      "misses": [
+        {
+          "query": "容器和虚拟机相比省在哪里？",
+          "expected": [
+            "docker_container"
+          ],
+          "retrieved": [
+            "cloud_computing"
+          ]
+        },
+        {
+          "query": "机器是怎么把一段文字变成一串数字的？",
+          "expected": [
+            "embedding_models"
+          ],
+          "retrieved": [
+            "large_language_models",
+            "prompt_engineering",
+            "computer_vision"
+          ]
+        }
+      ]
+    },
+    {
+      "count": 44,
+      "k": 5,
+      "recall_at_k": 0.9431818181818182,
+      "hit_at_k": 0.9545454545454546,
+      "precision_at_k": 0.19090909090909094,
+      "mrr": 0.9431818181818182,
+      "map": 0.9318181818181818,
+      "misses": [
+        {
+          "query": "容器和虚拟机相比省在哪里？",
+          "expected": [
+            "docker_container"
+          ],
+          "retrieved": [
+            "cloud_computing"
+          ]
+        },
+        {
+          "query": "机器是怎么把一段文字变成一串数字的？",
+          "expected": [
+            "embedding_models"
+          ],
+          "retrieved": [
+            "large_language_models",
+            "prompt_engineering",
+            "computer_vision"
+          ]
+        }
+      ]
+    }
+  ]
+}

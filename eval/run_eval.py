@@ -108,15 +108,22 @@ def render_markdown(summaries: list[dict]) -> str:
         "",
         f"评测集：{summaries[0]['count']} 条查询　|　度量口径：召回 top-k 个 chunk，按文档去重后计算",
         "",
-        "| K | Recall@K | Hit@K | Precision@K | MRR | MAP | 未命中数 |",
-        "|---|---|---|---|---|---|---|",
+        "| K | Recall@K | Hit@K | Precision@K | 未命中数 |",
+        "|---|---|---|---|---|",
     ]
     for s in summaries:
         lines.append(
             f"| {s['k']} | {s['recall_at_k']:.3f} | {s['hit_at_k']:.3f} "
-            f"| {s['precision_at_k']:.3f} | {s['mrr']:.3f} | {s['map']:.3f} "
-            f"| {len(s['misses'])} |"
+            f"| {s['precision_at_k']:.3f} | {len(s['misses'])} |"
         )
+
+    # MRR / MAP 基于检索到的完整结果列表计算，不随 K 截断。
+    # 放进上面那张 @K 的表里会让每行数字相同，看起来像 bug，所以单独列。
+    lines += [
+        "",
+        f"**MRR {summaries[0]['mrr']:.3f}　MAP {summaries[0]['map']:.3f}**"
+        "　（基于检索到的完整结果列表计算，不随 K 截断，故不并入上表）",
+    ]
     return "\n".join(lines)
 
 
@@ -129,7 +136,22 @@ def main():
                         help="只校验 golden set，不调用任何 API")
     parser.add_argument("--out", type=Path, help="把结果写成 markdown 文件")
     parser.add_argument("--json-out", type=Path, help="把原始结果写成 JSON 文件")
+    parser.add_argument("--from-json", type=Path,
+                        help="从已保存的 raw.json 重新生成报告，不调用任何 API")
     args = parser.parse_args()
+
+    ks = sorted(set(args.k))
+
+    # 离线重算：改了报告格式或想换个 K 重新汇总时，不必再调一次嵌入 API
+    if args.from_json:
+        data = json.loads(args.from_json.read_text(encoding="utf-8"))
+        records = data["records"]
+        report = render_markdown([evaluate(records, k) for k in ks])
+        print(report)
+        if args.out:
+            args.out.write_text(report + "\n", encoding="utf-8")
+            print(f"\n已写入 {args.out}")
+        return
 
     golden = load_golden(args.golden)
     corpus = corpus_topics(args.data_dir)
@@ -146,7 +168,6 @@ def main():
     if args.validate_only:
         return
 
-    ks = sorted(set(args.k))
     k_max = max(ks)
 
     print(f"即将调用嵌入 API：{len(golden)} 次（每条查询一次，与评估几个 K 无关）")
