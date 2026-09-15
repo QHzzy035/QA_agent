@@ -43,7 +43,18 @@ jobs:
         run: uv run --frozen pytest -q
 
       - name: 校验语法
-        run: uv run --frozen python -m compileall -q agent.py middleware.py streamlit_file.py model rag tools tests
+        run: uv run --frozen python -m compileall -q agent.py middleware.py streamlit_file.py model rag tools tests eval
+
+      - name: 校验 requirements.txt 与 uv.lock 一致
+        # requirements.txt 是给 Streamlit Cloud 部署用的导出产物。
+        # 改了依赖却忘记重新导出，云端装出来的环境和本地就不是一回事了。
+        run: |
+          uv export --format requirements-txt --no-dev --no-emit-project --no-hashes > /tmp/regen.txt
+          if ! diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/regen.txt); then
+            echo "::error::requirements.txt 已过期，请运行：uv export --format requirements-txt --no-dev --no-emit-project --no-hashes -o requirements.txt"
+            exit 1
+          fi
+          echo "requirements.txt 与 uv.lock 一致"
 
       - name: 校验核心模块可在无 Key 环境下导入
         # 模块级副作用（import 时就要求 API Key）会让应用在别人机器上直接起不来，

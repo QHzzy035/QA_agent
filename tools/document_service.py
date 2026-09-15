@@ -20,10 +20,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 # 依赖文件导入
-from tools.config_loader import BASE_DIR
-
-# 默认文档目录
-DATA_DIR = BASE_DIR / "test_data"
+from tools.config_loader import BASE_DIR, resolve_data_dir
 
 # 支持的文件扩展名（索引与上传校验共用）
 SUPPORTED_EXTENSIONS = (".txt", ".md", ".docx", ".pdf")
@@ -149,7 +146,7 @@ def get_document_list(chroma=None, data_dir=None) -> list[dict]:
     if chroma is None:
         from rag.retriever import get_chroma
         chroma = get_chroma()
-    data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
+    data_dir = Path(data_dir) if data_dir is not None else resolve_data_dir()
 
     # 只列出支持的文件类型，避免把 .DS_Store 之类的东西显示出来
     files = sorted(

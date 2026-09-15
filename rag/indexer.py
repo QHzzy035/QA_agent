@@ -10,14 +10,12 @@ import os
 from pathlib import Path
 
 # 依赖文件导入
-from tools.config_loader import BASE_DIR
+from tools.config_loader import BASE_DIR, resolve_data_dir
 from tools.document_service import SUPPORTED_EXTENSIONS, extract_documents
 from tools.logger_handler import logger
 
 # 索引记录文件：{文件绝对路径(normpath): md5}
 INDEX_FILE = BASE_DIR / "index_record.json"
-# 默认文档目录
-DATA_DIR = BASE_DIR / "test_data"
 
 
 def get_file_md5_hex(file_path: str) -> str:
@@ -94,7 +92,7 @@ def incremental_index(chroma=None, splitter=None, index_file=None, data_dir=None
         chroma = get_chroma()
 
     index_file = Path(index_file) if index_file is not None else INDEX_FILE
-    data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
+    data_dir = Path(data_dir) if data_dir is not None else resolve_data_dir()
 
     record, corrupt = _load_record(index_file)
 

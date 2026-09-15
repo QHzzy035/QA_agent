@@ -8,7 +8,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
 # 依赖文件导入
 from agent import agent
-from tools.config_loader import LLM_conf, BASE_DIR, rag_conf
+from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir
 from tools.document_service import read_document, get_document_list, delete_document
 from rag.connected_prompts import new_prompt
 from rag.indexer import incremental_index
@@ -112,9 +112,9 @@ with st.sidebar:
         key=f"uploader_{st.session_state.uploader_reset}",
     )
 
-    # 保存文件到 test_data 里（已存在的静默跳过，避免每次 rerun 重复提示）
+    # 保存文件到文档目录（已存在的静默跳过，避免每次 rerun 重复提示）
     for file in (uploaded_files or []):
-        save_path = BASE_DIR / "test_data" / file.name
+        save_path = resolve_data_dir() / file.name
         if not save_path.exists():
             with open(save_path, "wb") as f:
                 f.write(file.getbuffer())

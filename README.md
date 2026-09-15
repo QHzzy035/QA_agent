@@ -101,6 +101,7 @@ QA Agent/
 ├── streamlit_file.py            # Web 界面
 ├── pyproject.toml               # 项目依赖配置（uv 管理）
 ├── uv.lock                      # 依赖锁文件
+├── requirements.txt             # 由 uv.lock 导出，供 Streamlit Cloud 部署使用
 ├── .python-version              # Python 版本要求
 ├── .github/
 │   └── workflows/ci.yml         # CI：跑测试 + 校验模块可在无 Key 环境导入
@@ -123,7 +124,8 @@ QA Agent/
 │   ├── doc_manage_demo.png      # 文档库管理截图
 │   └── dialog_demo.png          # 知识库对话截图
 ├── .streamlit/
-│   └── config.toml              # Streamlit 配置
+│   ├── config.toml              # Streamlit 配置
+│   └── secrets.toml.example     # 云端部署的密钥模板（真正的 secrets.toml 已被 gitignore）
 ├── config/                      # 配置目录（YAML 格式）
 │   ├── LLM.yaml                 #   大模型配置
 │   ├── rag.yaml                 #   RAG 检索配置
@@ -148,8 +150,13 @@ QA Agent/
 │   ├── splitter.py              # 文档切割
 │   ├── retriever.py             # 向量检索
 │   └── connected_prompts.py     # 提示词拼接
-└── test_data/                   # 文档存放目录
+├── demo_data/                   # 演示语料（随仓库提供，保证 clone 下来就能用）
+└── test_data/                   # 本地文档存放目录（被 gitignore，运行时自动创建）
 ```
+
+> **文档目录的选取规则**：优先用 `test_data`；它不存在或为空时（新克隆的仓库、
+> 云端部署都属于这种情况）自动回退到 `demo_data`，保证开箱就有内容可问。
+> 两者都存在时以 `test_data` 为准，本地测试语料不会被演示文件干扰。
 
 ## 开发
 
@@ -160,3 +167,29 @@ uv run pytest        # 运行测试（无需 API Key 也可运行）
 
 测试覆盖增量索引判定、多格式文档抽取、模型工厂与提示词一致性等，
 不依赖 API Key、网络与真实向量库，可直接在 CI 中运行。
+
+检索质量评测见 [`eval/README.md`](eval/README.md)：
+
+```bash
+python -m eval.run_eval --validate-only   # 零成本校验标注
+python -m eval.run_eval --k 1 3 5         # 正式评测（会调用嵌入 API）
+```
+
+## 部署到 Streamlit Community Cloud
+
+1. 把仓库推到 GitHub（已完成）
+
+2. 到 <https://share.streamlit.io> 新建应用，选择本仓库，
+   主文件路径填 `streamlit_file.py`
+
+3. 在应用的 **Settings → Secrets** 里按 `.streamlit/secrets.toml.example`
+   的格式填入三个 Key，保存后应用会自动重启
+
+4. 依赖由仓库根目录的 `requirements.txt` 提供（从 `uv.lock` 导出，版本全锁定）。
+   `test_data/` 被 gitignore，云端不存在，应用会自动使用 `demo_data/` 里的演示语料
+
+> **⚠️ 公开部署前请注意**：应用会用**你自己**的 API Key 处理**任何人**的提问。
+> 侧边栏的上传与「重新索引」对访客开放，意味着任何人都能上传大量文档、
+> 触发嵌入调用，消耗你的额度。正式公开前建议至少做其一：
+> 关闭上传入口、给应用加访问密码（Streamlit 支持在 Secrets 里配
+> `password` 字段并用 `st.secrets` 校验），或设置用量告警。
