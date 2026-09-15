@@ -112,7 +112,13 @@ QA Agent/
 │   ├── test_factory.py          #   模型工厂选型与缓存
 │   ├── test_pdf_writer.py       #   PDF 生成器结构有效性
 │   ├── test_prompts.py          #   提示词与模式映射
+│   ├── test_eval_metrics.py     #   检索指标计算
 │   └── test_app_smoke.py        #   界面冒烟（需 API Key，无则跳过）
+├── eval/                        # 检索质量评测
+│   ├── README.md                #   度量口径、成本说明、局限
+│   ├── golden_set.json          #   44 条标注查询，覆盖全部语料主题
+│   ├── metrics.py               #   Recall@K / MRR / MAP（纯函数）
+│   └── run_eval.py              #   评测入口（支持 --validate-only 零成本校验）
 ├── assets/
 │   ├── doc_manage_demo.png      # 文档库管理截图
 │   └── dialog_demo.png          # 知识库对话截图

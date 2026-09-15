@@ -1,0 +1,229 @@
+{
+  "_schema": {
+    "query": "用户会真实提出的问题。刻意不照抄文档标题或正文原句——字面重叠会让指标虚高，测不出真实检索能力。",
+    "expected": "期望被召回的主题名（文件名去扩展名）。同一主题存在多种格式（如 blockchain_basics 有 .md/.docx/.pdf）时只写主题名，命中任意格式都算对。",
+    "note": "该问题的考察点，以及为什么期望主题是它（用于人工复核与后续维护）"
+  },
+  "queries": [
+    {
+      "query": "人工智能发展史上经历过几次低谷？",
+      "expected": ["ai_history"],
+      "note": "文档明确讲了两次寒冬，属于核心时间线内容"
+    },
+    {
+      "query": "为什么黑洞的事件视界一旦越过就出不来了？",
+      "expected": ["black_hole"],
+      "note": "考察事件视界与逃逸速度的因果解释"
+    },
+    {
+      "query": "区块链上的数据为什么改不了？",
+      "expected": ["blockchain_basics"],
+      "note": "考察哈希链与共识机制，措辞与原文不同"
+    },
+    {
+      "query": "唐诗和宋词在格律要求上有什么不一样？",
+      "expected": ["classical_poetry"],
+      "note": "考察两种体裁的对比"
+    },
+    {
+      "query": "全球变暖主要是人类活动造成的吗？",
+      "expected": ["climate_change"],
+      "note": "考察温室气体归因"
+    },
+    {
+      "query": "IaaS、PaaS、SaaS 三者该怎么区分？",
+      "expected": ["cloud_computing"],
+      "note": "考察云服务分层模型"
+    },
+    {
+      "query": "咖啡豆烘得深一点和浅一点，喝起来有什么区别？",
+      "expected": ["coffee_knowledge"],
+      "note": "口语化提问，考察能否匹配到烘焙程度与风味的关联"
+    },
+    {
+      "query": "目标检测和图像分类解决的是不是同一个问题？",
+      "expected": ["computer_vision"],
+      "note": "考察两个视觉任务的区分"
+    },
+    {
+      "query": "栈和队列在使用场景上有什么差别？",
+      "expected": ["data_structure_algorithm"],
+      "note": "基础数据结构对比"
+    },
+    {
+      "query": "容器和虚拟机相比省在哪里？",
+      "expected": ["docker_container"],
+      "note": "考察共享内核 vs 完整 Guest OS 的资源开销差异"
+    },
+    {
+      "query": "什么是机会成本？能不能举个例子？",
+      "expected": ["economics_principles"],
+      "note": "核心概念 + 要求举例"
+    },
+    {
+      "query": "机器是怎么把一段文字变成一串数字的？",
+      "expected": ["embedding_models"],
+      "note": "用非术语方式描述文本嵌入，考察语义匹配而非关键词匹配"
+    },
+    {
+      "query": "想减脂的话，该多做有氧还是多做力量训练？",
+      "expected": ["fitness_exercise"],
+      "note": "带具体目标的咨询式提问"
+    },
+    {
+      "query": "基因编辑婴儿为什么会引起那么大争议？",
+      "expected": ["gene_editing_crispr"],
+      "note": "考察伦理争议部分，非技术原理"
+    },
+    {
+      "query": "Git 里 merge 和 rebase 到底该用哪个？",
+      "expected": ["git_version_control"],
+      "note": "考察两种分支整合方式的取舍"
+    },
+    {
+      "query": "每天都吃外卖的话，怎么尽量保证营养？",
+      "expected": ["healthy_diet"],
+      "note": "生活化场景提问"
+    },
+    {
+      "query": "家里的智能设备之间靠什么协议通信？",
+      "expected": ["internet_of_things"],
+      "note": "考察物联网通信协议"
+    },
+    {
+      "query": "JavaScript 里怎么等一个网络请求返回再继续？",
+      "expected": ["javascript_frontend"],
+      "note": "用描述性语言问异步处理"
+    },
+    {
+      "query": "大模型里的注意力机制到底在算什么？",
+      "expected": ["large_language_models"],
+      "note": "考察 Transformer 核心组件"
+    },
+    {
+      "query": "签劳动合同的时候要留意哪些条款？",
+      "expected": ["legal_common_sense"],
+      "note": "实用性法律问题"
+    },
+    {
+      "query": "服务器卡了，怎么快速看出是哪个进程在吃资源？",
+      "expected": ["linux_commands"],
+      "note": "运维场景提问，考察 top/ps 类命令"
+    },
+    {
+      "query": "过拟合是什么意思，怎么缓解？",
+      "expected": ["machine_learning", "machine_learning_algorithms"],
+      "note": "过拟合在 machine_learning 与 machine_learning_algorithms 两篇中都有涉及，均判为命中"
+    },
+    {
+      "query": "随机森林和支持向量机分别适合什么数据？",
+      "expected": ["machine_learning_algorithms"],
+      "note": "考察算法选型对比"
+    },
+    {
+      "query": "五四运动在中国近代史上意味着什么？",
+      "expected": ["modern_chinese_history"],
+      "note": "历史意义类问题"
+    },
+    {
+      "query": "普通人怎么防范钓鱼网站和电信诈骗？",
+      "expected": ["network_security"],
+      "note": "安全防护措施，非攻击原理"
+    },
+    {
+      "query": "手里有点闲钱，应该怎么分配比较稳妥？",
+      "expected": ["personal_finance"],
+      "note": "资产配置咨询，措辞完全不含原始关键词"
+    },
+    {
+      "query": "刚接回家的小猫要打哪些针？",
+      "expected": ["pet_care"],
+      "note": "宠物疫苗问题"
+    },
+    {
+      "query": "为什么让模型一步一步想，效果会更好？",
+      "expected": ["prompt_engineering"],
+      "note": "用通俗说法问思维链"
+    },
+    {
+      "query": "买了一堆没用的东西之后又很后悔，这是什么心理？",
+      "expected": ["psychology_intro"],
+      "note": "用生活情境描述认知失调，考察语义匹配"
+    },
+    {
+      "query": "Python 的装饰器是怎么做到不改原函数就加功能的？",
+      "expected": ["python_advanced"],
+      "note": "考察装饰器原理"
+    },
+    {
+      "query": "量子比特和普通比特最关键的区别是什么？",
+      "expected": ["quantum_computing"],
+      "note": "考察叠加态"
+    },
+    {
+      "query": "RAG 是怎么减少模型一本正经胡说八道的？",
+      "expected": ["rag_basics"],
+      "note": "口语化描述幻觉问题"
+    },
+    {
+      "query": "新用户没有任何历史行为，推荐系统怎么办？",
+      "expected": ["recommendation_system"],
+      "note": "用场景描述冷启动，不含该术语"
+    },
+    {
+      "query": "太阳能和风能各自最大的短板是什么？",
+      "expected": ["renewable_energy"],
+      "note": "间歇性与储能问题"
+    },
+    {
+      "query": "ROS 在机器人开发里扮演什么角色？",
+      "expected": ["robotics_intro"],
+      "note": "考察 ROS 的定位"
+    },
+    {
+      "query": "为什么给数据库加了索引查询就快了？",
+      "expected": ["sql_database"],
+      "note": "考察索引的数据结构原理"
+    },
+    {
+      "query": "《三体》主要讲了什么？",
+      "expected": ["three_body"],
+      "note": "书籍内容概述"
+    },
+    {
+      "query": "中医是怎么通过望闻问切判断病因的？",
+      "expected": ["traditional_chinese_medicine"],
+      "note": "考察辨证论治思路"
+    },
+    {
+      "query": "第一次出国自由行要提前准备些什么？",
+      "expected": ["travel_guide"],
+      "note": "行程规划类问题"
+    },
+    {
+      "query": "向量数据库和 MySQL 这种有什么本质不同？",
+      "expected": ["vector_database"],
+      "note": "考察相似度检索 vs 精确匹配"
+    },
+    {
+      "query": "做个小项目，Django、Flask、FastAPI 选哪个？",
+      "expected": ["web_framework"],
+      "note": "框架选型咨询"
+    },
+    {
+      "query": "理性主义和经验主义吵的到底是什么？",
+      "expected": ["western_philosophy"],
+      "note": "考察知识来源之争"
+    },
+    {
+      "query": "世界上一共有哪几种主要气候类型？",
+      "expected": ["world_geography"],
+      "note": "地理常识"
+    },
+    {
+      "query": "刚学 Python，应该先掌握哪些基础语法？",
+      "expected": ["python_tutorial"],
+      "note": "与 python_advanced 那条构成对照，考察能否区分入门与进阶内容"
+    }
+  ]
+}
