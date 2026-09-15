@@ -19,9 +19,7 @@ from tools.config_loader import BASE_DIR
 from tools.logger_handler import logger
 
 
-# ---------------------------------------------------------------------------
 # 提示词加载：三种模式对应的系统提示词
-# ---------------------------------------------------------------------------
 def _load_prompt(filename: str) -> str:
     with open(BASE_DIR / "prompts" / filename, "r", encoding="utf-8") as f:
         return f.read()
@@ -43,9 +41,7 @@ MODE_SWITCH_TOOLS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # 中间件一：工具监控 + 捕获模式切换标记
-# ---------------------------------------------------------------------------
 @wrap_tool_call
 def monitor_tool(
     request: ToolCallRequest,
@@ -70,9 +66,7 @@ def monitor_tool(
         raise
 
 
-# ---------------------------------------------------------------------------
 # 中间件二：模型调用前日志
-# ---------------------------------------------------------------------------
 @before_model
 def log_before_model(state: AgentState, runtime: Runtime):
     logger.info(
@@ -87,9 +81,7 @@ def log_before_model(state: AgentState, runtime: Runtime):
     return None
 
 
-# ---------------------------------------------------------------------------
 # 中间件三：动态提示词切换
-# ---------------------------------------------------------------------------
 @dynamic_prompt
 def mode_switch(request: ModelRequest):
     # 防御性读取 context（invoke 等路径可能未显式传入 context）
