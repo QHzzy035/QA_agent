@@ -132,26 +132,6 @@ with st.sidebar:
         st.session_state.uploader_reset = 0
 
     st.header("文档管理")
-
-    # 文档目录：显示位置 + 一键在系统文件管理器中打开
-    # 打开动作是由运行 Streamlit 的机器执行的（浏览器不允许网页碰本地文件系统），
-    # 所以本地跑时开的是你自己的文件夹，云端部署时服务器没有图形界面会失败——
-    # 失败时把完整路径显示出来，让人能自己去找。
-    data_dir = resolve_data_dir()
-    col_dir, col_open = st.columns([5, 1], vertical_alignment="center")
-    with col_dir:
-        st.markdown(
-            f"<span class='doc-name' title='{data_dir}'>📁 {data_dir}</span>",
-            unsafe_allow_html=True,
-        )
-    with col_open:
-        if st.button("📂", help="在文件管理器中打开文档目录", use_container_width=True):
-            opened, detail = open_in_file_manager(data_dir)
-            if opened:
-                st.toast("已在文件管理器中打开", icon="📂")
-            else:
-                st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
-
     uploaded_files = st.file_uploader(
         "上传文档",
         type=["txt", "pdf", "docx", "md"],  # 支持的文件类型
@@ -181,8 +161,12 @@ with st.sidebar:
                 st.warning(f"以下 {len(stats['failed'])} 个文档解析失败，已跳过：{names}")
 
     st.divider()
-    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）
-    with st.expander("📚 文档库"):
+    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）。
+    # 右侧的 📂 与「文档库」同一行，点击即在系统文件管理器中定位到文档目录。
+    # 注：浏览器不允许网页访问本地文件系统，这一步由运行 Streamlit 的机器执行，
+    #     所以本地可用、云端会失败——失败时给出完整路径让人自己去找。
+    col_lib, col_open = st.columns([6, 1])
+    with col_lib, st.expander("📚 文档库"):
         doc_list = get_document_list()
         if doc_list:
             for doc in doc_list:
@@ -205,6 +189,16 @@ with st.sidebar:
                             st.rerun()
         else:
             st.caption("暂无文档，可上传或运行生成脚本")
+
+    with col_open:
+        data_dir = resolve_data_dir()
+        if st.button("📂", help=f"在文件管理器中打开文档目录\n{data_dir}",
+                     use_container_width=True):
+            opened, detail = open_in_file_manager(data_dir)
+            if opened:
+                st.toast("已在文件管理器中打开", icon="📂")
+            else:
+                st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
 
 # 初始化会话历史
 if "messages" not in st.session_state:
