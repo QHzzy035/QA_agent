@@ -1,5 +1,8 @@
 # QA Agent — 你的私人知识库问答助手
 
+[![CI](https://github.com/QHzzy035/QA_agent/actions/workflows/ci.yml/badge.svg)](https://github.com/QHzzy035/QA_agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+
 把你收藏的文章、笔记、文档，变成一个可以**直接对话的知识库**。上传文档 → 自动检索 → 用自然语言提问，AI 结合你的资料回答，查不到还能联网搜索；一句话即可切换文档精读总结、报告生成模式。
 
 ![文档库管理列表](assets/doc_manage_demo.png)

@@ -17,7 +17,7 @@ import struct
 import zlib
 from pathlib import Path
 
-# 候选中文字体（TrueType .ttf，按优先级）
+# 候选中文字体（.ttf 单字体或 .ttc 字体集合，按优先级）
 CJK_FONT_CANDIDATES = [
     "C:/Windows/Fonts/simhei.ttf",
     "C:/Windows/Fonts/simsunb.ttf",
@@ -25,6 +25,9 @@ CJK_FONT_CANDIDATES = [
     "C:/Windows/Fonts/simkai.ttf",
     "C:/Windows/Fonts/Deng.ttf",
     "C:/Windows/Fonts/NotoSansSC-VF.ttf",
+    # Linux 优先选 TrueType 轮廓的字体：本模块按 CIDFontType2（TrueType）方式嵌入，
+    # 而 Noto CJK 是 CFF 轮廓的字体集合，嵌入后文字抽取正常但渲染兼容性较差
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/System/Library/Fonts/PingFang.ttc",
 ]
@@ -47,11 +50,25 @@ def _u32(data: bytes, off: int) -> int:
     return struct.unpack(">I", data[off:off + 4])[0]
 
 
+def _sfnt_base(ttf: bytes) -> int:
+    """返回表目录在文件中的起始偏移。
+
+    普通 .ttf 直接位于文件开头（返回 0）；.ttc（TrueType Collection，Linux/macOS
+    上的中文字体多为这种格式）以 "ttcf" 头开始，其后是各字体的偏移表，
+    需取出第一个字体的表目录偏移。不区分这两种格式的话，会把 .ttc 的版本号
+    当成表数量读出垃圾数据。
+    """
+    if len(ttf) >= 16 and ttf[:4] == b"ttcf":
+        return _u32(ttf, 12)
+    return 0
+
+
 def _sfnt_tables(ttf: bytes) -> dict[bytes, tuple[int, int]]:
-    num_tables = _u16(ttf, 4)
+    base = _sfnt_base(ttf)
+    num_tables = _u16(ttf, base + 4)
     tables = {}
     for i in range(num_tables):
-        off = 12 + i * 16
+        off = base + 12 + i * 16
         tag = ttf[off:off + 4]
         tables[tag] = (_u32(ttf, off + 8), _u32(ttf, off + 12))
     return tables

@@ -41,6 +41,77 @@ class TestFindCjkFont:
             assert Path(font).exists()
 
 
+def _wrap_as_ttc(ttf: bytes) -> bytes:
+    """把一个单字体 .ttf 包装成只含一个字体的 .ttc（TrueType Collection）。
+
+    .ttc 布局：'ttcf' + 版本 + 字体数 + 各字体的表目录偏移，
+    其后才是字体数据。因此表目录里每个表的偏移量都要整体后移一个 header 的长度。
+    """
+    import struct
+
+    num_tables = struct.unpack(">H", ttf[4:6])[0]
+    header_size = 16
+    dir_end = 12 + num_tables * 16
+
+    shifted = bytearray(ttf[:dir_end])
+    for i in range(num_tables):
+        off = 12 + i * 16
+        old = struct.unpack(">I", shifted[off + 8:off + 12])[0]
+        shifted[off + 8:off + 12] = struct.pack(">I", old + header_size)
+
+    header = (b"ttcf" + struct.pack(">I", 0x00010000)
+              + struct.pack(">I", 1) + struct.pack(">I", header_size))
+    return bytes(header) + bytes(shifted) + ttf[dir_end:]
+
+
+class TestFontCollectionSupport:
+    """Linux / macOS 上的中文字体大多是 .ttc（字体集合），与单字体 .ttf 布局不同。
+
+    只按 .ttf 的布局解析会把 .ttc 的版本号当成表数量读出垃圾数据，
+    随后在查找 cmap 表时抛异常 —— 而候选字体列表里恰好列了 .ttc 路径。
+    """
+
+    def test_sfnt_base_distinguishes_ttf_from_ttc(self):
+        import struct
+
+        ttf_like = b"\x00\x01\x00\x00" + b"\x00" * 20
+        assert pdf_writer._sfnt_base(ttf_like) == 0
+
+        ttc_like = (b"ttcf" + struct.pack(">I", 0x00010000)
+                    + struct.pack(">I", 1) + struct.pack(">I", 16) + b"\x00" * 4)
+        assert pdf_writer._sfnt_base(ttc_like) == 16
+
+    @requires_font
+    def test_ttc_collection_is_parsed_like_the_original_ttf(self):
+        font = find_cjk_font()
+        raw = Path(font).read_bytes()
+        if raw[:4] == b"ttcf":
+            pytest.skip("系统字体本身就是 .ttc，无法做「包装前后对照」")
+
+        ttc = _wrap_as_ttc(raw)
+
+        # cmap 是解析正确性的关键证据：28522 个映射全都依赖从正确偏移读取
+        assert pdf_writer._parse_cmap(ttc) == pdf_writer._parse_cmap(raw)
+        assert pdf_writer._font_metrics(ttc) == pdf_writer._font_metrics(raw)
+
+    @requires_font
+    def test_write_pdf_accepts_a_ttc_font(self, tmp_path):
+        font = find_cjk_font()
+        raw = Path(font).read_bytes()
+        if raw[:4] == b"ttcf":
+            ttc_path = Path(font)
+        else:
+            ttc_path = tmp_path / "wrapped.ttc"
+            ttc_path.write_bytes(_wrap_as_ttc(raw))
+
+        out = tmp_path / "out.pdf"
+        write_pdf(out, "字体集合测试内容", font_path=str(ttc_path))
+
+        from pypdf import PdfReader
+        text = "\n".join(p.extract_text() or "" for p in PdfReader(str(out)).pages)
+        assert "字体集合测试内容" in text
+
+
 class TestWritePdf:
     @requires_font
     def test_produces_structurally_valid_pdf(self, tmp_path):

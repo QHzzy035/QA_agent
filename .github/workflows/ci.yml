@@ -27,6 +27,17 @@ jobs:
         # --default-index 去覆盖索引。
         run: uv sync --frozen
 
+      - name: 安装中文字体
+        # PDF 生成需要中文字体，否则相关测试会被跳过（本地 87 个用例、CI 上只剩 77 个）。
+        # 优先装 fonts-droid-fallback：它是 TrueType 轮廓的单个 .ttf，与本模块的嵌入方式匹配。
+        # fonts-noto-cjk 是 CFF 轮廓的 .ttc，仅作兜底。
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-droid-fallback || true
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk || true
+          echo "--- 可用的中文字体 ---"
+          fc-list :lang=zh | head -5 || true
+
       - name: 运行测试
         # 测试不依赖任何 API Key / 网络 / 真实向量库，无需配置 secrets
         run: uv run --frozen pytest -q
