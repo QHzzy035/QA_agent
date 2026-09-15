@@ -45,8 +45,12 @@ class FakeChroma:
             self.docs = [d for d in self.docs if d["source"] != where["source"]]
 
     # --- 读 ---
-    def get(self, include=None):
-        return {"metadatas": [{"source": d["source"]} for d in self.docs]}
+    def get(self, include=None, limit=None):
+        docs = self.docs[:limit] if limit is not None else self.docs
+        return {
+            "ids": [f"id{i}" for i in range(len(docs))],
+            "metadatas": [{"source": d["source"]} for d in docs],
+        }
 
     # --- 断言辅助 ---
     def docs_of(self, path: str) -> list[dict]:

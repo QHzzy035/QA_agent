@@ -10,6 +10,7 @@ import pytest
 
 from tools.document_service import (
     read_document, get_document_list, delete_document, extract_documents,
+    is_store_empty,
 )
 from tools.pdf_writer import find_cjk_font, write_pdf
 
@@ -164,6 +165,17 @@ class TestReadDocument:
         f = tmp_path / "empty.txt"
         f.write_text("   \n\n  ", encoding="utf-8")
         assert "为空" in read_document(str(f))
+
+
+class TestIsStoreEmpty:
+    """用于判断「首次运行」：空库且文档目录有文件时，应用会自动建一次索引。"""
+
+    def test_empty_store(self, fake_chroma):
+        assert is_store_empty(chroma=fake_chroma) is True
+
+    def test_non_empty_store(self, fake_chroma):
+        fake_chroma.docs.append({"source": "a.txt", "content": "x"})
+        assert is_store_empty(chroma=fake_chroma) is False
 
 
 class TestGetDocumentList:

@@ -93,9 +93,14 @@ DEEPSEEK_API_KEY=你的DeepSeekAPIKey
 
 ### 4. 放入文档
 
-`test_data/` 目录已被 `.gitignore` 排除，**克隆下来的项目默认是空的**。你可以二选一：
+**这一步可以跳过**：仓库自带的 `demo_data/` 里有 6 篇演示文档，
+启动时会自动建立索引，可以直接开始提问。
 
-- **自己放文档**：把要检索的文档（txt / pdf / docx / md）放进 `test_data/`；
+想用自己的文档，二选一：
+
+- **自己放文档**：把要检索的文档（txt / pdf / docx / md）放进 `test_data/`
+  （该目录被 `.gitignore` 排除，首次运行会自动创建）。放了之后
+  `test_data` 就会取代 `demo_data` 成为文档目录。
 - **生成测试文档**：项目自带脚本，按格式分别生成中文测试文档（txt 30 篇，md / docx / pdf 各 10 篇）：
 
   ```bash

@@ -141,6 +141,18 @@ def read_document(file_path: str) -> str:
     return "\n\n".join(parts)
 
 
+def is_store_empty(chroma=None) -> bool:
+    """向量库是否为空。
+
+    用于判断「首次运行」：新克隆的仓库和云端部署都从空库开始，
+    需要自动建一次索引，否则用户打开界面会发现问什么都查不到。
+    """
+    if chroma is None:
+        from rag.retriever import get_chroma
+        chroma = get_chroma()
+    return not chroma.get(limit=1).get("ids")
+
+
 def get_document_list(chroma=None, data_dir=None) -> list[dict]:
     """返回文档列表，含文件名、索引 chunk 数与索引状态。"""
     if chroma is None:

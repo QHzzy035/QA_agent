@@ -9,7 +9,10 @@ from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, Sys
 # 依赖文件导入
 from agent import agent
 from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir
-from tools.document_service import read_document, get_document_list, delete_document
+from tools.document_service import (
+    read_document, get_document_list, delete_document,
+    is_store_empty, SUPPORTED_EXTENSIONS,
+)
 from rag.connected_prompts import new_prompt
 from rag.indexer import incremental_index
 
@@ -75,7 +78,31 @@ def settings_dialog():
             st.rerun()
 
 
+def auto_index_on_first_run():
+    """首次运行时自动建一次索引。
+
+    新克隆的仓库和云端部署都从空向量库开始。若不自动处理，使用者打开界面
+    会发现问什么都查不到，还得先去侧边栏点一次「重新索引」再等进度条——
+    演示时这一步很尴尬。只在「库为空」且「文档目录里确实有文件」时才触发，
+    已有索引的环境完全不受影响。
+    """
+    data_dir = resolve_data_dir()
+    has_files = any(
+        p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        for p in data_dir.glob("*.*")
+    )
+    if not has_files or not is_store_empty():
+        return
+
+    with st.spinner(f"首次运行，正在为 {data_dir.name} 中的文档建立索引..."):
+        stats = incremental_index()
+    st.toast(f"索引完成：新增 {len(stats['added'])} 个文档", icon="✅")
+
+
 st.title("文档问答助手")
+
+# 首次运行自动建索引，让「clone 下来直接跑」无需任何手动步骤
+auto_index_on_first_run()
 
 # 上传文件
 with st.sidebar:
