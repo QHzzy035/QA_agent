@@ -5,10 +5,10 @@
 
 把你收藏的文章、笔记、文档，变成一个可以**直接对话的知识库**。上传文档 → 自动检索 → 用自然语言提问，AI 结合你的资料回答，查不到还能联网搜索；一句话即可切换文档精读总结、报告生成模式。
 
-![文档库管理列表](assets/doc_manage_demo.png)
+![文档库管理列表](assets/doc_manage_demo.gif)
 *文档库管理：查看已索引文档、浏览原文、删除*
 
-![知识库对话与思考过程](assets/dialog_demo.png)
+![知识库对话与思考过程](assets/dialog_demo.gif)
 *提问后给出带出处的回答（末尾标注来源文件），侧边栏「思考过程」展示检索到的原文片段*
 
 ## 工程要点
@@ -158,8 +158,8 @@ QA Agent/
 │   ├── metrics.py               #   Recall@K / MRR / MAP（纯函数）
 │   └── run_eval.py              #   评测入口（支持 --validate-only 零成本校验）
 ├── assets/
-│   ├── doc_manage_demo.png      # 文档库管理截图
-│   └── dialog_demo.png          # 知识库对话截图
+│   ├── doc_manage_demo.gif      # 文档库管理演示（动图）
+│   └── dialog_demo.gif          # 知识库对话演示（动图）
 ├── .streamlit/
 │   ├── config.toml              # Streamlit 配置
 │   └── secrets.toml.example     # 云端部署的密钥模板（真正的 secrets.toml 已被 gitignore）
