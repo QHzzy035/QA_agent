@@ -7,9 +7,8 @@
       ],
       "retrieved": [
         "ai_history",
-        "internet_of_things",
-        "computer_vision",
-        "recommendation_system"
+        "recommendation_system",
+        "blockchain_basics"
       ]
     },
     {
@@ -19,9 +18,9 @@
       ],
       "retrieved": [
         "black_hole",
-        "three_body",
-        "gene_editing_crispr",
-        "quantum_computing"
+        "git_version_control",
+        "blockchain_basics",
+        "javascript_frontend"
       ]
     },
     {
@@ -41,6 +40,7 @@
       "retrieved": [
         "classical_poetry",
         "web_framework",
+        "javascript_frontend",
         "prompt_engineering"
       ]
     },
@@ -51,8 +51,7 @@
       ],
       "retrieved": [
         "climate_change",
-        "renewable_energy",
-        "black_hole"
+        "world_geography"
       ]
     },
     {
@@ -71,8 +70,8 @@
       ],
       "retrieved": [
         "coffee_knowledge",
-        "machine_learning_algorithms",
-        "healthy_diet"
+        "docker_container",
+        "traditional_chinese_medicine"
       ]
     },
     {
@@ -91,9 +90,9 @@
       ],
       "retrieved": [
         "data_structure_algorithm",
-        "sql_database",
         "web_framework",
-        "python_advanced"
+        "cloud_computing",
+        "blockchain_basics"
       ]
     },
     {
@@ -102,7 +101,8 @@
         "docker_container"
       ],
       "retrieved": [
-        "cloud_computing"
+        "cloud_computing",
+        "docker_container"
       ]
     },
     {
@@ -112,10 +112,10 @@
       ],
       "retrieved": [
         "economics_principles",
-        "blockchain_basics",
-        "climate_change",
         "prompt_engineering",
-        "psychology_intro"
+        "climate_change",
+        "legal_common_sense",
+        "blockchain_basics"
       ]
     },
     {
@@ -124,9 +124,9 @@
         "embedding_models"
       ],
       "retrieved": [
+        "blockchain_basics",
         "large_language_models",
-        "prompt_engineering",
-        "computer_vision"
+        "network_security"
       ]
     },
     {
@@ -136,7 +136,8 @@
       ],
       "retrieved": [
         "fitness_exercise",
-        "healthy_diet"
+        "healthy_diet",
+        "renewable_energy"
       ]
     },
     {
@@ -146,8 +147,8 @@
       ],
       "retrieved": [
         "gene_editing_crispr",
-        "recommendation_system",
-        "healthy_diet"
+        "blockchain_basics",
+        "prompt_engineering"
       ]
     },
     {
@@ -157,9 +158,8 @@
       ],
       "retrieved": [
         "git_version_control",
-        "rag_basics",
-        "sql_database",
-        "prompt_engineering"
+        "prompt_engineering",
+        "rag_basics"
       ]
     },
     {
@@ -169,9 +169,8 @@
       ],
       "retrieved": [
         "healthy_diet",
-        "travel_guide",
-        "pet_care",
-        "fitness_exercise"
+        "fitness_exercise",
+        "pet_care"
       ]
     },
     {
@@ -210,8 +209,9 @@
       "retrieved": [
         "legal_common_sense",
         "prompt_engineering",
-        "internet_of_things",
-        "personal_finance"
+        "pet_care",
+        "blockchain_basics",
+        "quantum_computing"
       ]
     },
     {
@@ -221,9 +221,9 @@
       ],
       "retrieved": [
         "linux_commands",
-        "sql_database",
-        "cloud_computing",
-        "git_version_control"
+        "web_framework",
+        "python_advanced",
+        "cloud_computing"
       ]
     },
     {
@@ -234,9 +234,8 @@
       ],
       "retrieved": [
         "machine_learning_algorithms",
-        "recommendation_system",
-        "prompt_engineering",
-        "psychology_intro"
+        "large_language_models",
+        "computer_vision"
       ]
     },
     {
@@ -246,7 +245,8 @@
       ],
       "retrieved": [
         "machine_learning_algorithms",
-        "recommendation_system"
+        "machine_learning",
+        "computer_vision"
       ]
     },
     {
@@ -256,9 +256,8 @@
       ],
       "retrieved": [
         "modern_chinese_history",
-        "gene_editing_crispr",
         "classical_poetry",
-        "legal_common_sense"
+        "climate_change"
       ]
     },
     {
@@ -267,10 +266,10 @@
         "network_security"
       ],
       "retrieved": [
-        "legal_common_sense",
         "network_security",
-        "travel_guide",
-        "personal_finance"
+        "legal_common_sense",
+        "personal_finance",
+        "travel_guide"
       ]
     },
     {
@@ -291,9 +290,10 @@
       ],
       "retrieved": [
         "pet_care",
-        "traditional_chinese_medicine",
+        "recommendation_system",
+        "prompt_engineering",
         "travel_guide",
-        "recommendation_system"
+        "network_security"
       ]
     },
     {
@@ -302,8 +302,7 @@
         "prompt_engineering"
       ],
       "retrieved": [
-        "prompt_engineering",
-        "computer_vision"
+        "prompt_engineering"
       ]
     },
     {
@@ -312,10 +311,9 @@
         "psychology_intro"
       ],
       "retrieved": [
+        "legal_common_sense",
         "psychology_intro",
-        "economics_principles",
-        "recommendation_system",
-        "prompt_engineering"
+        "economics_principles"
       ]
     },
     {
@@ -326,7 +324,7 @@
       "retrieved": [
         "python_advanced",
         "javascript_frontend",
-        "large_language_models"
+        "computer_vision"
       ]
     },
     {
@@ -336,7 +334,6 @@
       ],
       "retrieved": [
         "quantum_computing",
-        "network_security",
         "blockchain_basics"
       ]
     },
@@ -347,8 +344,8 @@
       ],
       "retrieved": [
         "rag_basics",
-        "prompt_engineering",
-        "large_language_models"
+        "large_language_models",
+        "prompt_engineering"
       ]
     },
     {
@@ -386,7 +383,7 @@
       "retrieved": [
         "sql_database",
         "vector_database",
-        "git_version_control"
+        "data_structure_algorithm"
       ]
     },
     {
@@ -396,10 +393,10 @@
       ],
       "retrieved": [
         "three_body",
-        "blockchain_basics",
+        "gene_editing_crispr",
         "black_hole",
-        "rag_basics",
-        "large_language_models"
+        "blockchain_basics",
+        "modern_chinese_history"
       ]
     },
     {
@@ -409,8 +406,8 @@
       ],
       "retrieved": [
         "traditional_chinese_medicine",
-        "travel_guide",
-        "psychology_intro"
+        "classical_poetry",
+        "pet_care"
       ]
     },
     {
@@ -420,9 +417,9 @@
       ],
       "retrieved": [
         "travel_guide",
-        "renewable_energy",
-        "healthy_diet",
-        "prompt_engineering"
+        "legal_common_sense",
+        "world_geography",
+        "personal_finance"
       ]
     },
     {
@@ -433,6 +430,7 @@
       "retrieved": [
         "vector_database",
         "sql_database",
+        "data_structure_algorithm",
         "cloud_computing"
       ]
     },
@@ -452,10 +450,9 @@
       ],
       "retrieved": [
         "western_philosophy",
-        "rag_basics",
         "psychology_intro",
-        "economics_principles",
-        "recommendation_system"
+        "traditional_chinese_medicine",
+        "rag_basics"
       ]
     },
     {
@@ -475,9 +472,9 @@
       ],
       "retrieved": [
         "python_tutorial",
-        "web_framework",
         "git_version_control",
-        "large_language_models",
+        "computer_vision",
+        "python_advanced",
         "javascript_frontend"
       ]
     }
@@ -489,8 +486,8 @@
       "recall_at_k": 0.9204545454545454,
       "hit_at_k": 0.9318181818181818,
       "precision_at_k": 0.9318181818181818,
-      "mrr": 0.9431818181818182,
-      "map": 0.9318181818181818,
+      "mrr": 0.9545454545454546,
+      "map": 0.9431818181818182,
       "misses": [
         {
           "query": "容器和虚拟机相比省在哪里？",
@@ -507,13 +504,13 @@
             "embedding_models"
           ],
           "retrieved": [
-            "large_language_models"
+            "blockchain_basics"
           ]
         },
         {
-          "query": "普通人怎么防范钓鱼网站和电信诈骗？",
+          "query": "买了一堆没用的东西之后又很后悔，这是什么心理？",
           "expected": [
-            "network_security"
+            "psychology_intro"
           ],
           "retrieved": [
             "legal_common_sense"
@@ -524,30 +521,21 @@
     {
       "count": 44,
       "k": 3,
-      "recall_at_k": 0.9431818181818182,
-      "hit_at_k": 0.9545454545454546,
-      "precision_at_k": 0.31818181818181834,
-      "mrr": 0.9431818181818182,
-      "map": 0.9318181818181818,
+      "recall_at_k": 0.9659090909090909,
+      "hit_at_k": 0.9772727272727273,
+      "precision_at_k": 0.3257575757575759,
+      "mrr": 0.9545454545454546,
+      "map": 0.9431818181818182,
       "misses": [
-        {
-          "query": "容器和虚拟机相比省在哪里？",
-          "expected": [
-            "docker_container"
-          ],
-          "retrieved": [
-            "cloud_computing"
-          ]
-        },
         {
           "query": "机器是怎么把一段文字变成一串数字的？",
           "expected": [
             "embedding_models"
           ],
           "retrieved": [
+            "blockchain_basics",
             "large_language_models",
-            "prompt_engineering",
-            "computer_vision"
+            "network_security"
           ]
         }
       ]
@@ -555,30 +543,21 @@
     {
       "count": 44,
       "k": 5,
-      "recall_at_k": 0.9431818181818182,
-      "hit_at_k": 0.9545454545454546,
-      "precision_at_k": 0.19090909090909094,
-      "mrr": 0.9431818181818182,
-      "map": 0.9318181818181818,
+      "recall_at_k": 0.9659090909090909,
+      "hit_at_k": 0.9772727272727273,
+      "precision_at_k": 0.1954545454545455,
+      "mrr": 0.9545454545454546,
+      "map": 0.9431818181818182,
       "misses": [
-        {
-          "query": "容器和虚拟机相比省在哪里？",
-          "expected": [
-            "docker_container"
-          ],
-          "retrieved": [
-            "cloud_computing"
-          ]
-        },
         {
           "query": "机器是怎么把一段文字变成一串数字的？",
           "expected": [
             "embedding_models"
           ],
           "retrieved": [
+            "blockchain_basics",
             "large_language_models",
-            "prompt_engineering",
-            "computer_vision"
+            "network_security"
           ]
         }
       ]

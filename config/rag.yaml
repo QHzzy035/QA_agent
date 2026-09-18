@@ -5,7 +5,11 @@ splitter:
 
 # 向量数据库配置
 vector_database:
-  embedding_model_name: "text-embedding-v4"
+  # 选型依据见 notes/评测与术语速查.md：对照实验（eval/experiment.py）显示
+  # 在 44 条 golden set 上 Hit@1 与 v4 持平，但 MRR/MAP/Recall 一致略好。
+  # 两者同价（¥0.0005/千 token）、同默认维度（1024）。
+  # 换这一行会触发索引全量重建（indexer 会比对记录里的模型名）。
+  embedding_model_name: "qwen3.7-text-embedding"
   collection_name: "data"
   persist_directory: "./chroma_data"
 
