@@ -89,6 +89,11 @@ class TestEmbeddingsFactory:
         assert len(created) == 1
 
     def test_uses_configured_embedding_model(self, monkeypatch):
+        """断言「工厂用的就是配置里的模型」，而不是硬编码某个模型名。
+
+        硬编码的话，每次换嵌入模型这个测试都要跟着改 —— 那它测的就不是
+        配置是否生效，而是「配置恰好没变过」。
+        """
         seen = {}
 
         def _fake_embeddings(model=None, **kwargs):
@@ -97,8 +102,10 @@ class TestEmbeddingsFactory:
 
         monkeypatch.setattr("model.factory.DashScopeEmbeddings", _fake_embeddings)
 
+        from tools.config_loader import rag_conf
         EmbeddingsFactory.get()
-        assert seen["model"] == "text-embedding-v4"
+
+        assert seen["model"] == rag_conf["vector_database"]["embedding_model_name"]
 
 
 class TestLazyCreation:
