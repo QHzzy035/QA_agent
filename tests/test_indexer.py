@@ -164,5 +164,48 @@ class TestIncrementalIndex:
 
         import json
         record = json.loads(index_env.record.read_text(encoding="utf-8"))
-        assert list(record.keys()) == [path]
+        assert list(record["files"].keys()) == [path]
         assert index_env.chroma.docs[0]["source"] == path
+
+    def test_embedding_model_change_triggers_rebuild(self, index_env, fake_loader):
+        """换了嵌入模型必须全量重建。
+
+        这是本项目真实踩过的坑：增量索引只看文件 MD5，换了模型后 MD5 一个都没变，
+        于是全部文件被跳过 —— 库里留着旧模型的向量，查询却用新模型编码，
+        两个向量空间混在一起，检索不报错但结果完全失真。
+        """
+        fake_loader()
+        path = index_env.write("a.txt", "内容")
+        index_env.run(embed_model="model-a")
+        assert index_env.chroma.reset_count == 1
+
+        # 文件内容一个字节没动，只有嵌入模型变了
+        stats = index_env.run(embed_model="model-b")
+
+        assert index_env.chroma.reset_count == 2, "换模型必须触发全量重建"
+        assert stats["added"] == [path], "应重新索引，而不是被跳过"
+        assert stats["skipped"] == 0
+        assert len(index_env.chroma.docs_of(path)) == 1, "重建后不应有重复"
+
+    def test_same_embedding_model_still_skips(self, index_env, fake_loader):
+        """对照组：模型没变时仍然走增量，别把重建做成每次都触发。"""
+        fake_loader()
+        index_env.write("a.txt", "内容")
+        index_env.run(embed_model="model-a")
+        stats = index_env.run(embed_model="model-a")
+
+        assert index_env.chroma.reset_count == 1
+        assert stats["skipped"] == 1
+        assert stats["added"] == []
+
+    def test_legacy_flat_record_triggers_rebuild(self, index_env, fake_loader):
+        """旧版扁平记录（不含嵌入模型信息）同样要重建 —— 无从判断向量空间。"""
+        import json
+        fake_loader()
+        path = index_env.write("a.txt", "内容")
+        index_env.record.write_text(json.dumps({path: "deadbeef"}), encoding="utf-8")
+
+        stats = index_env.run(embed_model="model-a")
+
+        assert index_env.chroma.reset_count == 1
+        assert stats["added"] == [path]

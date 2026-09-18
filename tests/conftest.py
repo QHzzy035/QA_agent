@@ -116,14 +116,18 @@ def index_env(tmp_path, fake_chroma, fake_splitter):
     data.mkdir()
     record = tmp_path / "index_record.json"
 
-    def run():
+    def run(embed_model=None):
         from rag.indexer import incremental_index
-        return incremental_index(
-            chroma=fake_chroma,
-            splitter=fake_splitter,
-            index_file=record,
-            data_dir=data,
-        )
+        kwargs = {
+            "chroma": fake_chroma,
+            "splitter": fake_splitter,
+            "index_file": record,
+            "data_dir": data,
+        }
+        # 不传时走配置里的真实模型名；测试要验证「换模型触发重建」时才显式传
+        if embed_model is not None:
+            kwargs["embed_model"] = embed_model
+        return incremental_index(**kwargs)
 
     def write(name: str, text: str) -> str:
         """在数据目录写一个文件，返回其 normpath 绝对路径（与索引记录 key 一致）。"""
