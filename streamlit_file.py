@@ -316,10 +316,14 @@ if user_input:
 
             except Exception as e:
                 # 如果 stream 失败，回退到 invoke
+                # 必须传 context：中间件要读 runtime.context["mode"]，
+                # 不传的话它拿到 None —— 虽然中间件已做防御，但显式传更稳，
+                # 也与上面的 stream 路径保持一致
                 prompt_text, _ = new_prompt(user_input)
-                response = agent.invoke({
-                    "messages": [HumanMessage(prompt_text)],
-                })
+                response = agent.invoke(
+                    {"messages": [HumanMessage(prompt_text)]},
+                    context={"mode": "normal"},
+                )
                 full_response = response["messages"][-1].content
 
         # 最终显示完整回复

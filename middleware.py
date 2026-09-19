@@ -69,9 +69,13 @@ def monitor_tool(
 # 中间件二：模型调用前日志
 @before_model
 def log_before_model(state: AgentState, runtime: Runtime):
+    # 防御性读取 context：invoke / stream 都可能不传 context，
+    # 此时 runtime.context 是 None，直接 .get 会抛 AttributeError。
+    # （与下面 mode_switch 的处理保持一致）
+    ctx = getattr(runtime, "context", None) or {}
     logger.info(
         f"[log_before_model] 即将调用模型，带有 {len(state['messages'])} 条信息，"
-        f"当前模式：{runtime.context.get('mode', 'normal')}"
+        f"当前模式：{ctx.get('mode', 'normal')}"
     )
     last = state['messages'][-1]
     last_content = last.content if isinstance(last.content, str) else str(last.content)
