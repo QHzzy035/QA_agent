@@ -1,6 +1,22 @@
 # 模型配置
-chat_model_name: "deepseek-chat"
-summarize_model_name: "deepseek-chat"
-rewrite_model_name: "deepseek-chat"
+#
+# 用 DeepSeek-V4.1-Flash（API 里的正式名是 deepseek-flash）。
+# 原先是 "deepseek-chat" —— 那是旧别名，服务端实际也是路由到 deepseek-flash
+# （已实测确认），但别名原定的弃用日期已过，哪天被摘掉就会直接 400。
+# 用当前有效的正式名更稳，面试时口径也更准。
+chat_model_name: "deepseek-flash"
+summarize_model_name: "deepseek-flash"
+rewrite_model_name: "deepseek-flash"
+
+# 生成温度。知识库问答要的是「忠实于资料、结果稳定」，不是「有创意」。
+#
+# 取值经过实测：不设时走 provider 默认值（偏高），**同一问题每次答案都不同、
+# 长度能差 2.5 倍**，还时有时无地触发联网搜索 —— 对用户是「不可靠」，
+# 对评测是「无法复现」。设成 0.2 后好转但仍不稳定。
+#
+# 设为 0。注意 0 **不等于完全确定**：DeepSeek 侧是 MoE 架构，专家路由会随
+# 批次变化，实测同问题仍有约 6% 的长度波动。这是 provider 层特性，不是本项目的
+# bug —— 所以生成质量评测要跑多轮取分布，不能只看单次分数。
+temperature: 0
 # 对话历史总结阈值：历史消息超过该条数时，把更早的对话总结压缩（设为很大的值如 999 可关闭总结、保留完整历史）
 history_summarize_length: 10

@@ -56,6 +56,42 @@ class TestChatModelFactory:
 
         assert ChatModelFactory.get("某个不存在的角色").model_name == "chat-model"
 
+    def test_passes_configured_temperature(self, monkeypatch):
+        """温度必须显式传给模型。
+
+        不传的话走 provider 默认值（偏高）—— 实测同一问题每次答案都不同、
+        长度能差 3 倍，既让用户觉得不可靠，也让生成质量评测无法复现。
+        """
+        seen = {}
+
+        def _init_chat_model(model=None, **kwargs):
+            seen["model"] = model
+            seen.update(kwargs)
+            return SimpleNamespace(model_name=model)
+
+        monkeypatch.setattr("model.factory.init_chat_model", _init_chat_model)
+        monkeypatch.setattr("model.factory.LLM_conf",
+                            {"chat_model_name": "chat-model", "temperature": 0.2})
+
+        ChatModelFactory.get("chat")
+
+        assert seen["temperature"] == 0.2
+
+    def test_falls_back_to_default_temperature(self, monkeypatch):
+        """配置里没写 temperature 时用默认值，而不是 KeyError 崩掉。"""
+        seen = {}
+
+        def _init_chat_model(model=None, **kwargs):
+            seen.update(kwargs)
+            return SimpleNamespace(model_name=model)
+
+        monkeypatch.setattr("model.factory.init_chat_model", _init_chat_model)
+        monkeypatch.setattr("model.factory.LLM_conf", {"chat_model_name": "chat-model"})
+
+        ChatModelFactory.get("chat")
+
+        assert seen["temperature"] == ChatModelFactory.DEFAULT_TEMPERATURE
+
     def test_caches_instance_per_role(self, monkeypatch, fake_chat_model):
         monkeypatch.setattr("model.factory.LLM_conf", {"chat_model_name": "chat-model"})
 

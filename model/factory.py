@@ -25,12 +25,17 @@ class ChatModelFactory:
 
     _instances: dict[str, BaseChatModel] = {}
 
+    # 默认温度。知识库问答要的是「忠实于资料、结果稳定」，不是「有创意」——
+    # 不显式设置时走 provider 默认值（偏高），同一问题每次答案都不同。
+    DEFAULT_TEMPERATURE = 0.2
+
     @classmethod
     def get(cls, role: str) -> BaseChatModel:
         """按角色返回模型实例；config 里没有该角色配置时回退到 chat_model_name。"""
         if role not in cls._instances:
             model_name = LLM_conf.get(f"{role}_model_name", LLM_conf["chat_model_name"])
-            cls._instances[role] = init_chat_model(model=model_name)
+            temperature = LLM_conf.get("temperature", cls.DEFAULT_TEMPERATURE)
+            cls._instances[role] = init_chat_model(model=model_name, temperature=temperature)
         return cls._instances[role]
 
 
