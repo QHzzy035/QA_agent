@@ -41,6 +41,32 @@ MODE_SWITCH_TOOLS = {
 }
 
 
+def _runtime_context(runtime, *, create: bool = False):
+    """读取 runtime.context，兼容 None / dict / 对象三种形态。
+
+    invoke / stream 都可能不传 context，此时 runtime.context 是 None。
+    早期实现直接 ctx["mode"] 会抛 AttributeError，这里统一做防御：
+    - create=True 时尝试补一个空 dict（属性只读则放弃，返回 None）；
+    - 非 dict（例如 context_schema 的 dataclass）原样返回，由调用方按属性读写。
+    """
+    ctx = getattr(runtime, "context", None)
+    if ctx is None and create:
+        try:
+            runtime.context = {}
+            ctx = runtime.context
+        except Exception:
+            return None
+    return ctx
+
+
+def _get_mode(runtime) -> str:
+    """从 context 中取当前模式，取不到时回退 normal。"""
+    ctx = _runtime_context(runtime)
+    if isinstance(ctx, dict):
+        return ctx.get("mode", "normal")
+    return getattr(ctx, "mode", "normal") if ctx is not None else "normal"
+
+
 # 中间件一：工具监控 + 捕获模式切换标记
 @wrap_tool_call
 def monitor_tool(
@@ -55,10 +81,25 @@ def monitor_tool(
         result = handler(request)
         logger.info(f"[tool_monitor] 工具 {tool_name} 调用成功")
 
-        # 捕获模式切换标记工具，写入 runtime context，供动态提示词切换读取
+        # 捕获模式切换标记工具，写入 runtime context，供动态提示词切换读取。
+        # context 可能为 None（invoke/stream 未显式传入），也可能不是 dict，
+        # 这里统一走 _runtime_context，避免 AttributeError 让整次调用失败。
         if tool_name in MODE_SWITCH_TOOLS:
-            request.runtime.context["mode"] = MODE_SWITCH_TOOLS[tool_name]
-            logger.info(f"[tool_monitor] 已切换模式 -> {MODE_SWITCH_TOOLS[tool_name]}")
+            target = MODE_SWITCH_TOOLS[tool_name]
+            ctx = _runtime_context(request.runtime, create=True)
+            if ctx is None:
+                logger.warning("[tool_monitor] runtime.context 为空，模式切换标记已忽略")
+            elif isinstance(ctx, dict):
+                ctx["mode"] = target
+                logger.info(f"[tool_monitor] 已切换模式 -> {target}")
+            else:
+                try:
+                    setattr(ctx, "mode", target)
+                    logger.info(f"[tool_monitor] 已切换模式 -> {target}")
+                except Exception as e:
+                    logger.warning(
+                        f"[tool_monitor] context 类型不支持写入，模式切换已忽略：{e}"
+                    )
 
         return result
     except Exception as e:
@@ -72,10 +113,9 @@ def log_before_model(state: AgentState, runtime: Runtime):
     # 防御性读取 context：invoke / stream 都可能不传 context，
     # 此时 runtime.context 是 None，直接 .get 会抛 AttributeError。
     # （与下面 mode_switch 的处理保持一致）
-    ctx = getattr(runtime, "context", None) or {}
     logger.info(
         f"[log_before_model] 即将调用模型，带有 {len(state['messages'])} 条信息，"
-        f"当前模式：{ctx.get('mode', 'normal')}"
+        f"当前模式：{_get_mode(runtime)}"
     )
     last = state['messages'][-1]
     last_content = last.content if isinstance(last.content, str) else str(last.content)
@@ -89,6 +129,5 @@ def log_before_model(state: AgentState, runtime: Runtime):
 @dynamic_prompt
 def mode_switch(request: ModelRequest):
     # 防御性读取 context（invoke 等路径可能未显式传入 context）
-    ctx = getattr(request.runtime, "context", None) or {}
-    mode = ctx.get("mode", "normal")
+    mode = _get_mode(request.runtime)
     return MODE_PROMPTS.get(mode, MODE_PROMPTS["normal"])
