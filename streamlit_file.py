@@ -8,7 +8,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
 # 依赖文件导入
 from agent import agent
-from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir
+from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir, user_data_dir
 from tools.document_service import (
     read_document, get_document_list, delete_document,
     is_store_empty, open_in_file_manager, SUPPORTED_EXTENSIONS,
@@ -139,9 +139,11 @@ with st.sidebar:
         key=f"uploader_{st.session_state.uploader_reset}",
     )
 
-    # 保存文件到文档目录（已存在的静默跳过，避免每次 rerun 重复提示）
+    # 保存文件到文档目录（已存在的静默跳过，避免每次 rerun 重复提示）。
+    # 写入固定走 user_data_dir()：resolve_data_dir() 在 test_data 为空时
+    # 会回退 demo_data，往那里写会污染随仓库跟踪的演示语料。
     for file in (uploaded_files or []):
-        save_path = resolve_data_dir() / file.name
+        save_path = user_data_dir() / file.name
         if not save_path.exists():
             with open(save_path, "wb") as f:
                 f.write(file.getbuffer())
@@ -149,6 +151,8 @@ with st.sidebar:
 
     st.divider()
     data_dir = resolve_data_dir()
+    upload_dir = user_data_dir()
+    st.caption(f"文档目录：`{data_dir.name}`；上传保存到 `{upload_dir.name}`")
 
     # 重新索引 + 在文件管理器中打开文档目录，两个按钮并排一行。
     # 打开动作由运行 Streamlit 的机器执行（浏览器出于安全不允许网页访问本地

@@ -50,6 +50,34 @@ class TestResolveDataDir:
         assert cl.resolve_data_dir().name == "demo_data"
 
 
+class TestUserDataDir:
+    """写目录必须固定 test_data，不能跟着读目录回退到 demo_data。"""
+
+    def test_returns_test_data_and_creates_it(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cl, "BASE_DIR", tmp_path)
+
+        result = cl.user_data_dir()
+
+        assert result == tmp_path / "test_data"
+        assert result.is_dir()
+
+    def test_does_not_fall_back_to_demo_data(self, tmp_path, monkeypatch):
+        """test_data 为空、demo_data 有文件时，写入仍应落在 test_data。"""
+        (tmp_path / "test_data").mkdir()
+        (tmp_path / "demo_data").mkdir()
+        (tmp_path / "demo_data" / "demo.txt").write_text("x", encoding="utf-8")
+        monkeypatch.setattr(cl, "BASE_DIR", tmp_path)
+
+        assert cl.user_data_dir() == tmp_path / "test_data"
+
+    def test_is_stable_when_test_data_is_empty(self, tmp_path, monkeypatch):
+        """连续调用不依赖 test_data 是否已有文件，避免上传后目录漂移。"""
+        (tmp_path / "demo_data").mkdir()
+        monkeypatch.setattr(cl, "BASE_DIR", tmp_path)
+
+        assert cl.user_data_dir() == cl.user_data_dir() == tmp_path / "test_data"
+
+
 class TestStreamlitSecretsBridge:
     def test_does_nothing_when_streamlit_not_loaded(self, monkeypatch):
         """脚本、单元测试等场景没有 streamlit，不应因此报错。"""

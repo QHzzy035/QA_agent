@@ -58,6 +58,20 @@ def resolve_data_dir() -> Path:
         return test_data
     return BASE_DIR / "demo_data"
 
+
+def user_data_dir() -> Path:
+    """返回用户写入目录：始终是 test_data（不存在则创建）。
+
+    与 resolve_data_dir() 的「读」语义分开：resolve_data_dir 在 test_data
+    为空时会回退 demo_data，如果上传也走它，新克隆的仓库会把文件写进
+    demo_data —— 而 demo_data 是随仓库跟踪的演示语料，上传同名文件会覆盖、
+    删除会把 tracked 文件删掉。写入必须固定到 test_data。
+    """
+    data_dir = BASE_DIR / "test_data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
 # 加载配置文件
 def load_LLM_settings(config_path: str = str(BASE_DIR/"config"/"LLM.yaml"), encoding = "UTF-8"):
     with open(config_path,"r",encoding=encoding) as f:
