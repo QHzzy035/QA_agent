@@ -69,6 +69,7 @@ jobs:
           from rag.indexer import incremental_index
           from rag.connected_prompts import is_no_retrieval
           from tools.document_service import read_document
+          from tools.web_search import web_search
           from tools.pdf_writer import write_pdf
           print('核心模块导入正常，无模块级凭据依赖')
           "
