@@ -61,7 +61,13 @@ def rewrite_query(query: str, history: list) -> str:
 
 
 # 拼接新的提示词
-def new_prompt(query: str, history: list = None, k: int = None, fetch_k: int = None):
+def new_prompt(
+    query: str,
+    history: list = None,
+    k: int = None,
+    fetch_k: int = None,
+    retriever_fn=None,
+):
     # 规则识别明显不需要检索的问题（你是谁、现在几点、闲聊等）
     if is_no_retrieval(query):
         return query, []
@@ -71,17 +77,23 @@ def new_prompt(query: str, history: list = None, k: int = None, fetch_k: int = N
     if history:
         search_query = rewrite_query(query, history)
 
+    # 默认走旧的全局检索器；虚拟库页面会传入按库检索的函数
+    if retriever_fn is None:
+        retriever_fn = retriever
+
     user_prompts = ""
     add_context = ""
     collected_msg = []
 
     # 接收检索器返回的结果（用改写后的查询检索）
-    for content, metadata in retriever(search_query, k=k, fetch_k=fetch_k):
-        file_name = Path(metadata.get("source", "未知来源")).name
+    for content, metadata in retriever_fn(search_query, k=k, fetch_k=fetch_k):
+        source = metadata.get("source") or metadata.get("rel_path") or "未知来源"
+        file_name = Path(source).name
         add_context += f"[来源: {file_name}]\n{content}\n\n"
         collected_msg.append({
             "source": file_name,
-            "preview": content[:100] + "..."
+            "preview": content[:100] + "...",
+            "doc_key": metadata.get("doc_key", ""),
         })
 
     # 如果没有找到相关的资料

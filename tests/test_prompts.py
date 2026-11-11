@@ -45,3 +45,42 @@ class TestModeSwitchMapping:
 
     def test_mapping_is_not_empty(self):
         assert MODE_SWITCH_TOOLS
+
+
+class TestLibraryPrompt:
+    def test_retrieved_sources_keep_doc_key(self):
+        from rag.connected_prompts import new_prompt
+
+        def fake_retriever(query, k=None, fetch_k=None):
+            return [(
+                "量子计算利用量子叠加与纠缠。",
+                {
+                    "source": "D:/docs/quantum.txt",
+                    "rel_path": "quantum.txt",
+                    "doc_key": "source-1/quantum.txt",
+                },
+            )]
+
+        prompt, info = new_prompt(
+            "量子计算是什么",
+            retriever_fn=fake_retriever,
+        )
+
+        assert "量子计算利用量子叠加" in prompt
+        assert "[来源: quantum.txt]" in prompt
+        assert info[0]["doc_key"] == "source-1/quantum.txt"
+
+    def test_no_retrieval_short_circuits(self):
+        from rag.connected_prompts import new_prompt
+
+        called = []
+
+        def fake_retriever(*args, **kwargs):
+            called.append(True)
+            return []
+
+        prompt, info = new_prompt("你好", retriever_fn=fake_retriever)
+
+        assert prompt == "你好"
+        assert info == []
+        assert called == []

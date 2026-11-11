@@ -67,6 +67,18 @@ def retriever(query: str, k: int = None, fetch_k: int = None) -> list:
     return [(doc.page_content, doc.metadata) for doc in results]
 
 
+def retriever_for_library(query: str, library, k: int = None, fetch_k: int = None) -> list:
+    """在指定虚拟知识库中做 MMR 检索。"""
+    if k is None:
+        k = rag_conf["k"]
+    if fetch_k is None:
+        fetch_k = rag_conf["fetch_k"]
+    results = get_library_chroma(library).max_marginal_relevance_search(
+        query, k=k, fetch_k=fetch_k
+    )
+    return [(doc.page_content, doc.metadata) for doc in results]
+
+
 def __getattr__(name: str):
     """PEP 562 模块级惰性属性：兼容旧的 `from rag.retriever import chroma`。"""
     if name == "chroma":
