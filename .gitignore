@@ -25,3 +25,19 @@ index_record.json
 # 注：本机全局 git ignore（~/.config/git/ignore）里也有一条同样的规则，
 # 但那条跟着机器走，换台机器就失效。这里显式写一份，不依赖外部配置。
 .claude/settings.local.json
+
+# MVP runtime data：用户文档、索引、排除记录、设置绝不进仓库
+data/
+settings.json
+.pytest_cache/
+*.sqlite3
+*.log
+*.tmp
+.coverage
+htmlcov/
+
+# Build outputs（桌面版产物，当前 MVP 不提交）
+*.exe
+*.msi
+*.dmg
+*.zip
