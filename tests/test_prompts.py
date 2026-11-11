@@ -84,3 +84,22 @@ class TestLibraryPrompt:
         assert prompt == "你好"
         assert info == []
         assert called == []
+
+    def test_retrieval_char_budget_truncates(self):
+        from rag.connected_prompts import new_prompt
+
+        def fake_retriever(query, k=None, fetch_k=None):
+            return [
+                ("a" * 100, {"source": "a.txt", "doc_key": "s/a.txt"}),
+                ("b" * 100, {"source": "b.txt", "doc_key": "s/b.txt"}),
+            ]
+
+        prompt, info = new_prompt(
+            "量子计算是什么",
+            retriever_fn=fake_retriever,
+            max_retrieval_chars=120,
+        )
+
+        assert len(info) == 2
+        assert "b" * 100 not in prompt
+        assert "a" * 100 in prompt

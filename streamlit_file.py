@@ -17,6 +17,7 @@ import streamlit as st
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage
 
 from agent import get_agent
+from middleware import MODE_PROMPTS
 from rag.connected_prompts import new_prompt
 from rag.retriever import retriever_for_library
 from rag.scanner import ScanConfig, preview_scan
@@ -24,7 +25,6 @@ from rag.sync import (
     STATE_DISABLED,
     STATE_EXCLUDED,
     STATE_INDEXED,
-    STATE_LABELS,
     STATE_MISSING,
     STATE_OFFLINE,
     STATE_STALE,
@@ -36,7 +36,14 @@ from rag.sync import (
     sync_library,
 )
 from tools.app_paths import resource_dir
-from tools.config_loader import LLM_conf, rag_conf
+from tools.config_loader import LLM_conf
+from tools.context_budget import (
+    BudgetConfig,
+    cap_history,
+    finalize_prompt,
+    is_context_error,
+    truncate_text,
+)
 from tools.document_service import (
     SUPPORTED_EXTENSIONS,
     open_in_file_manager,
@@ -49,6 +56,7 @@ from tools.library import (
     SourceOverlap,
     bootstrap_default_library,
 )
+from tools.settings_store import load_settings, reset_settings, save_settings
 from tools.trash import move_to_trash
 
 st.set_page_config(page_title="QA Agent", page_icon="📚", layout="wide")
@@ -64,6 +72,56 @@ FILTER_STATES = {
     "文件缺失": {STATE_MISSING, STATE_UNKNOWN},
     "离线/禁用": {STATE_OFFLINE, STATE_DISABLED},
 }
+
+DARK_CSS = """
+<style>
+:root {
+  --background-color: #0e1117;
+  --secondary-background-color: #161b22;
+  --text-color: #f0f6fc;
+}
+.stApp { background-color: #0e1117; color: #f0f6fc; }
+[data-testid="stSidebar"] { background-color: #161b22; }
+[data-testid="stChatMessage"] { background-color: #161b22; }
+[data-testid="stExpander"] { border-color: #30363d; }
+.stApp p, .stApp label, .stApp h1, .stApp h2,
+.stApp h3, .stApp h4, .stApp li,
+[data-testid="stMarkdownContainer"],
+[data-testid="stCaptionContainer"] { color: #f0f6fc; }
+</style>
+"""
+
+LIGHT_CSS = """
+<style>
+:root {
+  --background-color: #ffffff;
+  --secondary-background-color: #f5f7fa;
+  --text-color: #111827;
+}
+.stApp { background-color: #ffffff; color: #111827; }
+[data-testid="stSidebar"] { background-color: #f7f8fa; }
+</style>
+"""
+
+
+def _resolve_theme(mode: str) -> str:
+    if mode in ("light", "dark"):
+        return mode
+    try:
+        theme = st.context.theme
+        value = getattr(theme, "type", None)
+        if value is None and isinstance(theme, dict):
+            value = theme.get("type")
+        if value in ("light", "dark"):
+            return value
+    except Exception:
+        pass
+    return "light"
+
+
+def apply_theme(mode: str) -> None:
+    resolved = _resolve_theme(mode)
+    st.markdown(DARK_CSS if resolved == "dark" else LIGHT_CSS, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +224,7 @@ def load_preview(path: str, mtime: float):
 
 def summarize_history(history: list, summarize_length: int | None = None):
     if summarize_length is None:
-        summarize_length = st.session_state.get(
-            "summarize_length_override",
-            LLM_conf.get("history_summarize_length", 10),
-        )
+        summarize_length = LLM_conf.get("history_summarize_length", 10)
     if len(history) <= summarize_length:
         return history
 
@@ -193,33 +248,91 @@ def summarize_history(history: list, summarize_length: int | None = None):
 
 
 @st.dialog("设置")
-def settings_dialog():
-    current_k = st.session_state.get("k_override", rag_conf["k"])
-    current_summarize = st.session_state.get(
-        "summarize_length_override",
-        LLM_conf.get("history_summarize_length", 10),
+def settings_dialog(settings: dict):
+    tab_search, tab_chat, tab_theme, tab_api = st.tabs(
+        ["检索", "对话", "外观", "API"]
     )
 
-    new_k = st.slider("每次检索参考片段数", 1, 10, current_k)
-    new_summarize = st.slider("历史多少条后压缩", 2, 50, current_summarize)
+    with tab_search:
+        new_k = st.slider(
+            "每次检索参考片段数",
+            1, 10, int(settings["k"]),
+        )
+        new_retrieval = st.number_input(
+            "检索资料上限（字符）",
+            min_value=500,
+            max_value=20000,
+            value=int(settings["max_retrieval_chars"]),
+            step=500,
+            help="拼进提示词的检索资料总长度上限",
+        )
 
-    st.caption("API 状态")
-    for key in REQUIRED_KEYS:
-        st.caption(f"{'✅' if os.getenv(key) else '❌'} {key}")
+    with tab_chat:
+        new_history = st.slider(
+            "历史多少条后压缩",
+            2, 50, int(settings["history_limit"]),
+        )
+        new_prompt_chars = st.number_input(
+            "总输入上限（字符）",
+            min_value=4000,
+            max_value=200000,
+            value=int(settings["max_prompt_chars"]),
+            step=1000,
+        )
+        new_message_chars = st.number_input(
+            "单条消息上限（字符）",
+            min_value=500,
+            max_value=20000,
+            value=int(settings["max_message_chars"]),
+            step=500,
+        )
+        new_history_chars = st.number_input(
+            "历史总上限（字符）",
+            min_value=1000,
+            max_value=100000,
+            value=int(settings["max_history_chars"]),
+            step=1000,
+        )
 
-    st.caption("改动仅本次会话生效，重启后恢复默认值")
+    with tab_theme:
+        theme_options = ["system", "light", "dark"]
+        theme_labels = {
+            "system": "跟随系统",
+            "light": "浅色",
+            "dark": "深色",
+        }
+        new_theme = st.selectbox(
+            "主题配色",
+            theme_options,
+            index=theme_options.index(settings["theme"]),
+            format_func=lambda value: theme_labels[value],
+        )
 
+    with tab_api:
+        st.caption("API Key 不写入设置文件；请配置在 .env 或系统环境变量中。")
+        for key in REQUIRED_KEYS:
+            st.caption(f"{'✅' if os.getenv(key) else '❌'} {key}")
+
+    st.divider()
     col_save, col_reset = st.columns(2)
     with col_save:
-        if st.button("保存", use_container_width=True):
-            st.session_state["k_override"] = new_k
-            st.session_state["summarize_length_override"] = new_summarize
+        if st.button("保存设置", type="primary", use_container_width=True):
+            save_settings({
+                "k": new_k,
+                "history_limit": new_history,
+                "theme": new_theme,
+                "max_prompt_chars": new_prompt_chars,
+                "max_message_chars": new_message_chars,
+                "max_history_chars": new_history_chars,
+                "max_retrieval_chars": new_retrieval,
+            })
             st.rerun()
     with col_reset:
         if st.button("恢复默认", use_container_width=True):
-            st.session_state.pop("k_override", None)
-            st.session_state.pop("summarize_length_override", None)
+            reset_settings()
             st.rerun()
+
+    st.caption("设置保存在本地 settings.json，重启后仍然生效。")
 
 
 # ---------------------------------------------------------------------------
@@ -675,7 +788,7 @@ def render_upload(library) -> None:
         st.rerun()
 
 
-def render_sidebar(library, docs: list[dict]) -> None:
+def render_sidebar(library, docs: list[dict], settings: dict) -> None:
     with st.sidebar:
         missing = [key for key in REQUIRED_KEYS if not os.getenv(key)]
         if missing:
@@ -686,7 +799,7 @@ def render_sidebar(library, docs: list[dict]) -> None:
             )
 
         if st.button("⚙️ 设置", use_container_width=True):
-            settings_dialog()
+            settings_dialog(settings)
 
         st.header("知识库")
         st.caption(library.name)
@@ -771,7 +884,7 @@ def _build_history() -> list:
     return history
 
 
-def render_chat(library) -> None:
+def render_chat(library, settings: dict) -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "shown_tool_calls" not in st.session_state:
@@ -787,11 +900,20 @@ def render_chat(library) -> None:
     if not user_input:
         return
 
+    budget = BudgetConfig.from_settings(settings)
     history = _build_history()
+    # 先按字符预算裁剪，避免“历史摘要”本身的输入就超限
+    history, history_report = cap_history(history, budget)
     try:
-        history = summarize_history(history)
+        history = summarize_history(history, settings["history_limit"])
     except Exception as e:
         st.warning(f"历史压缩失败，使用完整历史：{e}")
+
+    history, post_report = cap_history(history, budget)
+    history_report.trimmed_messages += post_report.trimmed_messages
+    history_report.truncated_messages += post_report.truncated_messages
+    history_report.removed_chars += post_report.removed_chars
+    history_report.history_chars = post_report.history_chars
 
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
@@ -803,15 +925,34 @@ def render_chat(library) -> None:
         prompt_text, retrieved_info = new_prompt(
             user_input,
             history,
-            k=st.session_state.get("k_override"),
+            k=settings["k"],
             retriever_fn=lambda q, k=None, fetch_k=None: retriever_for_library(
                 q, library, k, fetch_k
             ),
+            max_retrieval_chars=budget.max_retrieval_chars,
         )
     except Exception as e:
         st.warning(f"检索失败，直接回答：{e}")
         prompt_text = user_input
         retrieved_info = []
+
+    history, prompt_text, prompt_report = finalize_prompt(
+        MODE_PROMPTS["normal"],
+        history,
+        prompt_text,
+        budget,
+    )
+    trimmed = history_report.trimmed_messages + prompt_report.trimmed_messages
+    truncated = (
+        history_report.truncated_messages
+        + prompt_report.truncated_messages
+        + (1 if prompt_report.truncated_prompt else 0)
+    )
+    if trimmed or truncated:
+        detail = f"已省略 {trimmed} 条较早历史"
+        if truncated:
+            detail += f"，截断 {truncated} 条过长内容"
+        st.caption(f"上下文较长：{detail}")
 
     if retrieved_info:
         sources_text = "；".join(
@@ -874,16 +1015,39 @@ def render_chat(library) -> None:
                         full_response += msg.content
                         placeholder.markdown(full_response + "▌")
             except Exception as e:
-                st.warning(f"流式输出失败，回退到普通调用：{e}")
-                try:
-                    agent = get_agent()
-                    response = agent.invoke(
-                        {"messages": [HumanMessage(prompt_text)]},
-                        context={"mode": "normal"},
+                st.warning(f"流式输出失败：{e}")
+                recovered = False
+                if is_context_error(e):
+                    retry_history = history[-2:] if len(history) > 2 else []
+                    retry_prompt = truncate_text(
+                        prompt_text,
+                        max(1000, budget.max_prompt_chars // 2),
                     )
-                    full_response = response["messages"][-1].content
-                except Exception as e2:
-                    full_response = f"抱歉，当前无法调用模型：{e2}"
+                    try:
+                        response = get_agent().invoke(
+                            {
+                                "messages": retry_history
+                                + [HumanMessage(retry_prompt)]
+                            },
+                            context={"mode": "normal"},
+                        )
+                        full_response = response["messages"][-1].content
+                        recovered = True
+                        st.info("检测到上下文过长，已缩短历史后重试。")
+                    except Exception as retry_error:
+                        st.warning(
+                            f"缩短上下文后仍然失败：{retry_error}"
+                        )
+
+                if not recovered:
+                    try:
+                        response = get_agent().invoke(
+                            {"messages": history + [current_message]},
+                            context={"mode": "normal"},
+                        )
+                        full_response = response["messages"][-1].content
+                    except Exception as e2:
+                        full_response = f"抱歉，当前无法调用模型：{e2}"
 
         if full_response:
             placeholder.markdown(full_response)
@@ -916,6 +1080,9 @@ def render_chat(library) -> None:
 # 页面
 # ---------------------------------------------------------------------------
 
+settings = load_settings()
+apply_theme(settings["theme"])
+
 st.title("文档问答助手")
 show_flash()
 
@@ -929,7 +1096,7 @@ except Exception as e:
     st.error(f"读取文档库失败：{e}")
     documents = []
 
-render_sidebar(library, documents)
+render_sidebar(library, documents, settings)
 
 view_mode = st.radio(
     "视图",
@@ -942,4 +1109,4 @@ view_mode = st.radio(
 if view_mode == "预览":
     render_preview(library)
 else:
-    render_chat(library)
+    render_chat(library, settings)
