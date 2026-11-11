@@ -1,267 +1,963 @@
 """
 文件名：streamlit_file.py
-介绍：前端部分，使用streamlit进行编写
-"""
-# 依赖库导入
-import streamlit as st
-from pathlib import Path
-from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage, SystemMessage
-# 依赖文件导入
-from agent import agent
-from tools.config_loader import LLM_conf, rag_conf, resolve_data_dir, user_data_dir
-from tools.document_service import (
-    read_document, get_document_list, delete_document,
-    is_store_empty, open_in_file_manager, SUPPORTED_EXTENSIONS,
-)
-from rag.connected_prompts import new_prompt
-from rag.indexer import incremental_index
+介绍：虚拟知识库的 Streamlit 页面。
 
-# 方法定义：历史消息过多时，从最早的几次历史消息中进行总结（阈值可从 LLM.yaml 的 history_summarize_length 配置）
-def summarize_history(history: list, summarize_length: int = None):
+左栏：来源、统一文档列表、上传、同步、设置；
+右栏：对话 / 预览切换。
+
+页面只做展示与交互编排，检索、同步、状态推导都在 rag/ 与 tools/ 中。
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+from pathlib import Path
+
+import streamlit as st
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage
+
+from agent import get_agent
+from middleware import MODE_PROMPTS
+from rag.connected_prompts import new_prompt
+from rag.retriever import retriever_for_library
+from rag.scanner import ScanConfig, preview_scan
+from rag.sync import (
+    STATE_DISABLED,
+    STATE_EXCLUDED,
+    STATE_INDEXED,
+    STATE_MISSING,
+    STATE_OFFLINE,
+    STATE_STALE,
+    STATE_UNINDEXED,
+    STATE_UNKNOWN,
+    collect_documents,
+    exclude_document,
+    restore_document,
+    sync_library,
+)
+from tools.app_paths import resource_dir
+from tools.config_loader import LLM_conf
+from tools.context_budget import (
+    BudgetConfig,
+    cap_history,
+    finalize_prompt,
+    is_context_error,
+    truncate_text,
+)
+from tools.document_service import (
+    SUPPORTED_EXTENSIONS,
+    open_in_file_manager,
+    read_document,
+)
+from tools.library import (
+    DuplicateSource,
+    LibraryError,
+    LibraryRegistry,
+    SourceOverlap,
+    bootstrap_default_library,
+)
+from tools.settings_store import load_settings, reset_settings, save_settings
+from tools.trash import move_to_trash
+
+st.set_page_config(page_title="QA Agent", page_icon="📚", layout="wide")
+
+REQUIRED_KEYS = ("DASHSCOPE_API_KEY", "DEEPSEEK_API_KEY", "TAVILY_API_KEY")
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+FILTER_STATES = {
+    "全部": None,
+    "已索引": {STATE_INDEXED, STATE_STALE},
+    "未索引": {STATE_UNINDEXED},
+    "已移出": {STATE_EXCLUDED},
+    "文件缺失": {STATE_MISSING, STATE_UNKNOWN},
+    "离线/禁用": {STATE_OFFLINE, STATE_DISABLED},
+}
+
+DARK_CSS = """
+<style>
+:root {
+  --background-color: #0e1117;
+  --secondary-background-color: #161b22;
+  --text-color: #f0f6fc;
+}
+.stApp { background-color: #0e1117; color: #f0f6fc; }
+[data-testid="stSidebar"] { background-color: #161b22; }
+[data-testid="stChatMessage"] { background-color: #161b22; }
+[data-testid="stExpander"] { border-color: #30363d; }
+.stApp p, .stApp label, .stApp h1, .stApp h2,
+.stApp h3, .stApp h4, .stApp li,
+[data-testid="stMarkdownContainer"],
+[data-testid="stCaptionContainer"] { color: #f0f6fc; }
+</style>
+"""
+
+LIGHT_CSS = """
+<style>
+:root {
+  --background-color: #ffffff;
+  --secondary-background-color: #f5f7fa;
+  --text-color: #111827;
+}
+.stApp { background-color: #ffffff; color: #111827; }
+[data-testid="stSidebar"] { background-color: #f7f8fa; }
+</style>
+"""
+
+
+def _resolve_theme(mode: str) -> str:
+    if mode in ("light", "dark"):
+        return mode
+    try:
+        theme = st.context.theme
+        value = getattr(theme, "type", None)
+        if value is None and isinstance(theme, dict):
+            value = theme.get("type")
+        if value in ("light", "dark"):
+            return value
+    except Exception:
+        pass
+    return "light"
+
+
+def apply_theme(mode: str) -> None:
+    resolved = _resolve_theme(mode)
+    st.markdown(DARK_CSS if resolved == "dark" else LIGHT_CSS, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# 小工具
+# ---------------------------------------------------------------------------
+
+def _key_id(value: str) -> str:
+    return hashlib.md5(str(value).encode("utf-8")).hexdigest()[:10]
+
+
+def _human_size(size: int | None) -> str:
+    if size is None:
+        return "-"
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
+
+
+def _unique_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in range(1, 1000):
+        candidate = path.with_name(f"{path.stem} ({index}){path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise OSError(f"无法为重名文件生成新名称：{path.name}")
+
+
+def set_flash(message: str, icon: str = "✅") -> None:
+    st.session_state["_flash"] = (message, icon)
+
+
+def show_flash() -> None:
+    item = st.session_state.pop("_flash", None)
+    if item:
+        st.toast(item[0], icon=item[1])
+
+
+def bump_refresh() -> None:
+    st.session_state["refresh_token"] = st.session_state.get("refresh_token", 0) + 1
+
+
+def apply_pending_view() -> None:
+    pending = st.session_state.pop("_pending_view", None)
+    if pending:
+        st.session_state.view_mode = pending
+
+
+def goto_preview(doc_key: str) -> None:
+    st.session_state.preview_doc_key = doc_key
+    st.session_state["_pending_view"] = "预览"
+    st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# 知识库与数据读取
+# ---------------------------------------------------------------------------
+
+@st.cache_resource
+def get_registry() -> LibraryRegistry:
+    return LibraryRegistry()
+
+
+def ensure_library(registry: LibraryRegistry):
+    candidates = [
+        resource_dir() / "test_data",
+        resource_dir() / "demo_data",
+    ]
+    if "library_id" not in st.session_state:
+        library, _ = bootstrap_default_library(registry, candidates)
+        st.session_state.library_id = library.id
+    st.session_state.setdefault("refresh_token", 0)
+
+    try:
+        return registry.get_library(st.session_state.library_id)
+    except LibraryError:
+        library, _ = bootstrap_default_library(registry, candidates)
+        st.session_state.library_id = library.id
+        return registry.get_library(library.id)
+
+
+@st.cache_data(show_spinner=False, ttl=30)
+def load_documents(library_id: str, refresh_token: int):
+    registry = LibraryRegistry()
+    library = registry.get_library(library_id)
+    return [doc.to_dict() for doc in collect_documents(library)]
+
+
+@st.cache_data(show_spinner=False, max_entries=20)
+def load_preview(path: str, mtime: float):
+    return read_document(path)
+
+
+# ---------------------------------------------------------------------------
+# 设置与历史
+# ---------------------------------------------------------------------------
+
+def summarize_history(history: list, summarize_length: int | None = None):
     if summarize_length is None:
-        summarize_length = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 10))
+        summarize_length = LLM_conf.get("history_summarize_length", 10)
     if len(history) <= summarize_length:
         return history
 
     from model.factory import summarize_model
 
-    old_msg = ""
     old_history = history[:-summarize_length]
     recent_history = history[-summarize_length:]
 
-    # 将旧的对话进行拼接
+    old_msg = ""
     for msg in old_history:
         if isinstance(msg, HumanMessage):
             old_msg += f"用户：{msg.content}\n"
         else:
             old_msg += f"智能助手：{msg.content}\n"
 
-    # 总结旧的对话
-    summarize = summarize_model.invoke(
-        [
-            SystemMessage("对以下对话进行简短的总结"),
-            HumanMessage(old_msg)
-        ]
+    summary = summarize_model.invoke([
+        SystemMessage("对以下对话进行简短的总结"),
+        HumanMessage(old_msg),
+    ])
+    return [summary] + recent_history
+
+
+@st.dialog("设置")
+def settings_dialog(settings: dict):
+    tab_search, tab_chat, tab_theme, tab_api = st.tabs(
+        ["检索", "对话", "外观", "API"]
     )
 
-    return [summarize] + recent_history
+    with tab_search:
+        new_k = st.slider(
+            "每次检索参考片段数",
+            1, 10, int(settings["k"]),
+        )
+        new_retrieval = st.number_input(
+            "检索资料上限（字符）",
+            min_value=500,
+            max_value=20000,
+            value=int(settings["max_retrieval_chars"]),
+            step=500,
+            help="拼进提示词的检索资料总长度上限",
+        )
 
+    with tab_chat:
+        new_history = st.slider(
+            "历史多少条后压缩",
+            2, 50, int(settings["history_limit"]),
+        )
+        new_prompt_chars = st.number_input(
+            "总输入上限（字符）",
+            min_value=4000,
+            max_value=200000,
+            value=int(settings["max_prompt_chars"]),
+            step=1000,
+        )
+        new_message_chars = st.number_input(
+            "单条消息上限（字符）",
+            min_value=500,
+            max_value=20000,
+            value=int(settings["max_message_chars"]),
+            step=500,
+        )
+        new_history_chars = st.number_input(
+            "历史总上限（字符）",
+            min_value=1000,
+            max_value=100000,
+            value=int(settings["max_history_chars"]),
+            step=1000,
+        )
 
-@st.dialog("文档内容")
-def show_document(name: str, content: str):
-    """弹窗展示文档原文。"""
-    st.caption(name)
-    st.markdown(content)
+    with tab_theme:
+        theme_options = ["system", "light", "dark"]
+        theme_labels = {
+            "system": "跟随系统",
+            "light": "浅色",
+            "dark": "深色",
+        }
+        new_theme = st.selectbox(
+            "主题配色",
+            theme_options,
+            index=theme_options.index(settings["theme"]),
+            format_func=lambda value: theme_labels[value],
+        )
 
+    with tab_api:
+        st.caption("API Key 不写入设置文件；请配置在 .env 或系统环境变量中。")
+        for key in REQUIRED_KEYS:
+            st.caption(f"{'✅' if os.getenv(key) else '❌'} {key}")
 
-# 设置弹窗：配置检索条数和历史总结阈值（仅本次会话生效，重启恢复默认）
-@st.dialog("设置")
-def settings_dialog():
-    current_k = st.session_state.get("k_override", rag_conf["k"])
-    current_summarize = st.session_state.get("summarize_length_override", LLM_conf.get("history_summarize_length", 10))
-
-    new_k = st.slider("每次检索返回多少条", 1, 10, current_k)
-    new_summarize = st.slider("历史多少条后压缩", 2, 50, current_summarize)
-
-    st.caption("改动仅本次会话生效，重启后恢复默认值")
-
+    st.divider()
     col_save, col_reset = st.columns(2)
     with col_save:
-        if st.button("保存", use_container_width=True):
-            st.session_state["k_override"] = new_k
-            st.session_state["summarize_length_override"] = new_summarize
+        if st.button("保存设置", type="primary", use_container_width=True):
+            save_settings({
+                "k": new_k,
+                "history_limit": new_history,
+                "theme": new_theme,
+                "max_prompt_chars": new_prompt_chars,
+                "max_message_chars": new_message_chars,
+                "max_history_chars": new_history_chars,
+                "max_retrieval_chars": new_retrieval,
+            })
             st.rerun()
     with col_reset:
         if st.button("恢复默认", use_container_width=True):
-            st.session_state.pop("k_override", None)
-            st.session_state.pop("summarize_length_override", None)
+            reset_settings()
+            st.rerun()
+
+    st.caption("设置保存在本地 settings.json，重启后仍然生效。")
+
+
+# ---------------------------------------------------------------------------
+# 文件夹选择与添加来源
+# ---------------------------------------------------------------------------
+
+def pick_folder() -> str | None:
+    """在运行 Streamlit 的机器上弹出原生目录选择框。"""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as e:
+        st.warning(f"当前环境无法打开系统文件对话框：{e}")
+        return None
+
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        try:
+            return filedialog.askdirectory(title="选择知识库文件夹") or None
+        finally:
+            root.destroy()
+    except Exception as e:
+        st.warning(f"打开目录选择框失败：{e}")
+        return None
+
+
+@st.dialog("添加文件夹")
+def add_source_dialog(library_id: str):
+    pending = st.session_state.get("pending_source_path", "")
+    path = st.text_input("文件夹路径", value=pending)
+
+    if st.button("浏览..."):
+        picked = pick_folder()
+        if picked:
+            st.session_state.pending_source_path = picked
+            path = picked
+            st.caption(f"已选择：{picked}")
+
+    recursive = st.checkbox("包含子文件夹", value=True)
+
+    summary = None
+    raw = (path or "").strip()
+    if raw:
+        try:
+            summary = preview_scan(raw, ScanConfig(recursive=recursive))
+        except Exception as e:
+            st.error(f"无法扫描：{e}")
+
+    if summary:
+        st.caption(
+            f"{summary['files']} 个文件 · 预计 {summary['estimated_chunks']} 个片段 · "
+            f"{_human_size(summary['total_bytes'])}"
+        )
+        if summary["skipped_unsupported"]:
+            st.caption(f"跳过 {summary['skipped_unsupported']} 个不支持的文件")
+        if summary["skipped_too_large"]:
+            st.caption(f"跳过 {summary['skipped_too_large']} 个超大文件")
+        if summary["truncated"]:
+            st.error("文件数超过上限，请缩小范围或提高上限")
+
+    disabled = not raw or summary is None or summary["truncated"]
+    if st.button("添加来源", type="primary", disabled=disabled):
+        registry = get_registry()
+        try:
+            registry.add_source(library_id, raw, recursive=recursive)
+        except (SourceOverlap, DuplicateSource, LibraryError) as e:
+            st.error(f"添加失败：{e}")
+        else:
+            st.session_state.pop("pending_source_path", None)
+            set_flash("已添加来源；点“同步文档库”开始索引", "📁")
+            bump_refresh()
             st.rerun()
 
 
-def auto_index_on_first_run():
-    """首次运行时自动建一次索引。
+# ---------------------------------------------------------------------------
+# 同步与删除
+# ---------------------------------------------------------------------------
 
-    新克隆的仓库和云端部署都从空向量库开始。若不自动处理，使用者打开界面
-    会发现问什么都查不到，还得先去侧边栏点一次「重新索引」再等进度条——
-    演示时这一步很尴尬。只在「库为空」且「文档目录里确实有文件」时才触发，
-    已有索引的环境完全不受影响。
-    """
-    data_dir = resolve_data_dir()
-    has_files = any(
-        p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
-        for p in data_dir.glob("*.*")
-    )
-    if not has_files or not is_store_empty():
+@st.dialog("同步文档库")
+def sync_dialog(library):
+    rows = []
+    for source in library.sources:
+        if not source.enabled or not source.path.is_dir():
+            continue
+        try:
+            summary = preview_scan(
+                source.path,
+                ScanConfig(recursive=source.recursive),
+            )
+        except Exception as e:
+            st.error(f"扫描「{source.label}」失败：{e}")
+            return
+        rows.append((source, summary))
+
+    if not rows:
+        st.warning("没有在线且启用的来源，请先添加文件夹")
         return
 
-    with st.spinner(f"首次运行，正在为 {data_dir.name} 中的文档建立索引..."):
-        stats = incremental_index()
-    st.toast(f"索引完成：新增 {len(stats['added'])} 个文档", icon="✅")
-
-
-st.title("文档问答助手")
-
-# 首次运行自动建索引，让「clone 下来直接跑」无需任何手动步骤
-auto_index_on_first_run()
-
-# 上传文件
-with st.sidebar:
-    # 限制侧边栏最小宽度，防止被压缩到太窄导致内容错位
-    st.markdown("""
-    <style>
-    [data-testid="stSidebar"] {
-        min-width: 340px !important;
-    }
-    /* 文档名不换行，超出省略，避免窄屏下被掰断 */
-    .doc-name {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: block;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # 设置按钮（放在侧边栏顶部，固定不随主内容滚动）
-    if st.button("⚙️ 设置", use_container_width=True):
-        settings_dialog()
-
-    # 上传器 key 含重置计数：删除文档时自增，换 key 清空上传器，
-    # 避免被删除文件的上传残留状态在 rerun 时重新写回
-    if "uploader_reset" not in st.session_state:
-        st.session_state.uploader_reset = 0
-
-    st.header("文档管理")
-    uploaded_files = st.file_uploader(
-        "上传文档",
-        type=["txt", "pdf", "docx", "md"],  # 支持的文件类型
-        accept_multiple_files=True,  # 允许一次传多个
-        key=f"uploader_{st.session_state.uploader_reset}",
-    )
-
-    # 保存文件到文档目录（已存在的静默跳过，避免每次 rerun 重复提示）。
-    # 写入固定走 user_data_dir()：resolve_data_dir() 在 test_data 为空时
-    # 会回退 demo_data，往那里写会污染随仓库跟踪的演示语料。
-    for file in (uploaded_files or []):
-        save_path = user_data_dir() / file.name
-        if not save_path.exists():
-            with open(save_path, "wb") as f:
-                f.write(file.getbuffer())
-            st.toast(f"已上传: {file.name}")
-
-    st.divider()
-    data_dir = resolve_data_dir()
-    upload_dir = user_data_dir()
-    st.caption(f"文档目录：`{data_dir.name}`；上传保存到 `{upload_dir.name}`")
-
-    # 重新索引 + 在文件管理器中打开文档目录，两个按钮并排一行。
-    # 打开动作由运行 Streamlit 的机器执行（浏览器出于安全不允许网页访问本地
-    # 文件系统），因此本地可用、云端会失败——失败时给出完整路径让人自己去找。
-    # 结果提示渲染在列外面，避免长消息被挤进窄列里。
-    col_reindex, col_open = st.columns([3, 2])
-    with col_reindex:
-        reindex_clicked = st.button("🔄 重新索引文档库", use_container_width=True)
-    with col_open:
-        open_clicked = st.button(
-            "打开文件夹 📂",
-            help=f"在文件管理器中打开文档目录\n{data_dir}",
-            use_container_width=True,
+    truncated = False
+    for source, summary in rows:
+        st.markdown(f"**{source.label}**")
+        st.caption(
+            f"{summary['files']} 个文件 · 预计 {summary['estimated_chunks']} 个片段 · "
+            f"{_human_size(summary['total_bytes'])}"
         )
+        if summary["skipped_too_large"]:
+            st.caption(f"跳过 {summary['skipped_too_large']} 个超大文件")
+        if summary["truncated"]:
+            st.error(f"「{source.label}」文件数超过上限")
+            truncated = True
 
-    if reindex_clicked:
-        with st.spinner("正在处理文档..."):
-            stats = incremental_index()
-        st.success(f"文档库已更新：新增 {len(stats['added'])} 个，"
-                   f"变更 {len(stats['updated'])} 个，删除 {len(stats['removed'])} 个，"
-                   f"跳过 {stats['skipped']} 个")
-        if stats["failed"]:
-            names = "、".join(Path(p).name for p in stats["failed"])
-            st.warning(f"以下 {len(stats['failed'])} 个文档解析失败，已跳过：{names}")
+    if st.button("开始同步", type="primary", disabled=truncated):
+        with st.spinner("正在扫描、抽取并建立索引..."):
+            try:
+                stats = sync_library(library)
+            except Exception as e:
+                st.error(f"同步失败：{type(e).__name__}: {e}")
+                return
 
-    if open_clicked:
-        opened, detail = open_in_file_manager(data_dir)
-        if opened:
-            st.toast("已在文件管理器中打开", icon="📂")
+        message = (
+            f"同步完成：新增 {len(stats.added)}，变更 {len(stats.updated)}，"
+            f"移除 {len(stats.removed)}，跳过 {stats.skipped}"
+        )
+        if stats.failed:
+            message += f"，失败 {len(stats.failed)}"
+        if stats.offline_sources:
+            message += f"，离线来源 {len(stats.offline_sources)}"
+        if stats.rebuild_reason:
+            message += "（已全量重建）"
+        set_flash(message, "✅" if not stats.failed else "⚠️")
+        bump_refresh()
+        st.rerun()
+
+
+def _target_for(library, doc: dict) -> dict:
+    path = None
+    try:
+        path = library.resolve_doc_path(
+            doc["source_id"], Path(doc["rel_path"])
+        )
+    except Exception:
+        path = None
+    return {
+        "doc_key": doc["doc_key"],
+        "source_id": doc["source_id"],
+        "rel_path": doc["rel_path"],
+        "name": doc["name"],
+        "exists": bool(doc["exists"]),
+        "path": str(path) if path else "",
+    }
+
+
+@st.dialog("确认删除")
+def delete_dialog(library, target: dict, preselect: bool = False):
+    st.write(f"文档：**{target['name']}**")
+    st.caption(target["rel_path"])
+
+    delete_file = st.checkbox(
+        "同时删除磁盘文件（移到回收站）",
+        value=preselect,
+        disabled=not target["exists"],
+    )
+    if delete_file:
+        st.warning(f"文件将从磁盘移到回收站：{target['path']}")
+
+    col_cancel, col_confirm = st.columns(2)
+    with col_cancel:
+        if st.button("取消", use_container_width=True):
+            st.rerun()
+    with col_confirm:
+        if st.button("确认", type="primary", use_container_width=True):
+            if delete_file:
+                ok, message = move_to_trash(target["path"])
+                if not ok:
+                    st.error(message)
+                    return
+                try:
+                    restore_document(
+                        library,
+                        target["source_id"],
+                        Path(target["rel_path"]),
+                    )
+                except Exception:
+                    pass
+            else:
+                try:
+                    exclude_document(
+                        library,
+                        target["source_id"],
+                        Path(target["rel_path"]),
+                    )
+                except Exception as e:
+                    st.error(f"移出失败：{e}")
+                    return
+
+            try:
+                sync_library(library)
+                set_flash(
+                    "已删除文件并清理索引"
+                    if delete_file
+                    else "已移出知识库，文件仍保留在原文件夹",
+                    "🗑️",
+                )
+            except Exception as e:
+                set_flash(f"记录已更新，但同步失败：{e}", "⚠️")
+            bump_refresh()
+            st.rerun()
+
+
+def _restore_document(library, doc: dict) -> None:
+    try:
+        restore_document(
+            library,
+            doc["source_id"],
+            Path(doc["rel_path"]),
+        )
+        sync_library(library)
+        set_flash("已恢复并重新索引", "✅")
+    except Exception as e:
+        set_flash(f"恢复失败：{e}", "⚠️")
+    bump_refresh()
+    st.rerun()
+
+
+def _exclude_document(library, doc: dict) -> None:
+    try:
+        exclude_document(
+            library,
+            doc["source_id"],
+            Path(doc["rel_path"]),
+        )
+        try:
+            sync_library(library)
+            set_flash("已移出知识库，文件仍保留在原文件夹", "🗑️")
+        except Exception as e:
+            set_flash(f"已移出，但向量清理失败：{e}", "⚠️")
+    except Exception as e:
+        set_flash(f"移出失败：{e}", "⚠️")
+    bump_refresh()
+    st.rerun()
+
+
+def _clean_missing(library) -> None:
+    try:
+        sync_library(library)
+        set_flash("已清理缺失记录", "✅")
+    except Exception as e:
+        set_flash(f"清理失败：{e}", "⚠️")
+    bump_refresh()
+    st.rerun()
+
+
+def render_doc_actions(library, doc: dict) -> None:
+    ident = _key_id(doc["doc_key"])
+    target = _target_for(library, doc)
+
+    with st.popover("⋯", key=f"more_{ident}"):
+        if doc["state"] == STATE_EXCLUDED:
+            if st.button("恢复", key=f"restore_{ident}"):
+                _restore_document(library, doc)
+            if target["exists"] and st.button(
+                "删除文件（回收站）", key=f"trash_{ident}"
+            ):
+                delete_dialog(library, target, preselect=True)
+            return
+
+        if target["exists"]:
+            if st.button("移出知识库", key=f"exclude_{ident}"):
+                delete_dialog(library, target, preselect=False)
+            if st.button("删除文件（回收站）", key=f"trash_{ident}"):
+                delete_dialog(library, target, preselect=True)
+        elif doc["state"] in (STATE_OFFLINE, STATE_DISABLED):
+            if st.button("移出知识库", key=f"exclude_{ident}"):
+                _exclude_document(library, doc)
         else:
-            st.warning(f"无法打开文件管理器（{detail}）\n\n文档目录：`{data_dir}`")
+            if st.button("清理记录", key=f"clean_{ident}"):
+                _clean_missing(library)
 
-    st.divider()
-    # 文档库列表：展示已入库的文档及其索引状态，支持删除（默认折叠，点击展开）
-    with st.expander("📚 文档库"):
-        doc_list = get_document_list()
-        if doc_list:
-            for doc in doc_list:
-                col_name, col_view, col_del = st.columns([3, 1, 1], vertical_alignment="center")
-                with col_name:
-                    status = f"已索引 · {doc['chunks']} 段" if doc["indexed"] else "未索引"
-                    st.markdown(f"<span class='doc-name'>📄 {doc['name']}</span>", unsafe_allow_html=True)
-                    st.caption(status)
-                with col_view:
-                    if st.button("👁️", key=f"view_{doc['name']}", help="浏览原文"):
-                        content = read_document(doc["path"])
-                        show_document(doc["name"], content)
-                with col_del:
-                    with st.popover("🗑️", key=f"pop_{doc['name']}"):
-                        st.write(f"删除「{doc['name']}」？")
-                        if st.button("确认删除", key=f"confirm_del_{doc['name']}"):
-                            delete_document(doc["path"])
-                            # 清空上传器，避免被删文件的上传残留状态重新写回
-                            st.session_state.uploader_reset += 1
-                            st.rerun()
+
+# ---------------------------------------------------------------------------
+# 左栏
+# ---------------------------------------------------------------------------
+
+def render_sources(library, docs: list[dict]) -> None:
+    with st.expander("📁 来源", expanded=True):
+        if not library.sources:
+            st.caption("还没有文件夹来源")
+
+        for source in library.sources:
+            count = sum(1 for doc in docs if doc["source_id"] == source.id)
+            offline = not source.path.is_dir()
+            status = "离线" if offline else ("已启用" if source.enabled else "已禁用")
+
+            col_name, col_toggle, col_more = st.columns([5, 1, 1])
+            with col_name:
+                st.markdown(f"**{source.label}**")
+                st.caption(f"{count} 篇 · {status}")
+            with col_toggle:
+                enabled = st.toggle(
+                    "启用",
+                    value=source.enabled,
+                    key=f"enable_{source.id}",
+                    label_visibility="collapsed",
+                )
+                if enabled != source.enabled:
+                    get_registry().set_source_enabled(
+                        library.id, source.id, enabled
+                    )
+                    bump_refresh()
+                    st.rerun()
+            with col_more:
+                with st.popover("⋯", key=f"src_more_{source.id}"):
+                    if st.button("打开文件夹", key=f"open_src_{source.id}"):
+                        ok, detail = open_in_file_manager(source.path)
+                        if not ok:
+                            st.warning(detail)
+                    if st.button(
+                        "移除来源（不删文件）",
+                        key=f"remove_src_{source.id}",
+                    ):
+                        get_registry().remove_source(library.id, source.id)
+                        bump_refresh()
+                        st.rerun()
+
+        if st.button("➕ 添加文件夹", use_container_width=True):
+            add_source_dialog(library.id)
+
+
+def render_doc_list(library, docs: list[dict]) -> None:
+    with st.expander(f"📚 文档库（{len(docs)}）", expanded=True):
+        selected = st.selectbox(
+            "筛选",
+            list(FILTER_STATES),
+            key="doc_filter",
+            label_visibility="collapsed",
+        )
+        states = FILTER_STATES[selected]
+        filtered = [
+            doc for doc in docs
+            if states is None or doc["state"] in states
+        ]
+        st.caption(f"显示 {len(filtered)} 篇")
+
+        if not filtered:
+            st.caption("没有符合条件的文档")
+
+        for doc in filtered:
+            ident = _key_id(doc["doc_key"])
+            col_name, col_preview, col_more = st.columns([5, 1, 1])
+            with col_name:
+                st.markdown(f"**{doc['name']}**")
+                st.caption(f"{doc['source_label']} · {doc['state_label']}")
+            with col_preview:
+                if st.button(
+                    "👁️",
+                    key=f"preview_{ident}",
+                    help="预览",
+                ):
+                    goto_preview(doc["doc_key"])
+            with col_more:
+                render_doc_actions(library, doc)
+
+
+def render_upload(library) -> None:
+    with st.expander("📤 上传文件", expanded=False):
+        sources = [
+            source for source in library.sources
+            if source.enabled and source.path.is_dir()
+        ]
+        if not sources:
+            st.caption("请先添加一个在线来源")
+            return
+
+        with st.form("upload_form", clear_on_submit=True):
+            files = st.file_uploader(
+                "选择文件",
+                type=[ext.lstrip(".") for ext in SUPPORTED_EXTENSIONS],
+                accept_multiple_files=True,
+            )
+            target_id = st.selectbox(
+                "保存到",
+                options=[source.id for source in sources],
+                format_func=lambda source_id: next(
+                    source.label for source in sources
+                    if source.id == source_id
+                ),
+            )
+            submitted = st.form_submit_button(
+                "上传并同步", use_container_width=True
+            )
+
+        if not submitted:
+            return
+        if not files:
+            st.warning("没有选择文件")
+            return
+
+        source = next(item for item in sources if item.id == target_id)
+        saved = []
+        skipped = 0
+        notes = []
+
+        for file in files:
+            name = Path(file.name).name
+            if Path(name).suffix.lower() not in SUPPORTED_EXTENSIONS:
+                notes.append(f"{name}：不支持的格式")
+                continue
+            if file.size and file.size > MAX_UPLOAD_BYTES:
+                notes.append(f"{name}：超过 50 MB")
+                continue
+
+            data = bytes(file.getbuffer())
+            dest = source.path / name
+            if dest.exists():
+                try:
+                    same = (
+                        hashlib.md5(dest.read_bytes()).hexdigest()
+                        == hashlib.md5(data).hexdigest()
+                    )
+                except OSError:
+                    same = False
+                if same:
+                    skipped += 1
+                    continue
+                dest = _unique_path(dest)
+
+            try:
+                dest.write_bytes(data)
+                saved.append(dest.name)
+            except OSError as e:
+                notes.append(f"{name}：写入失败 {e}")
+
+        if saved:
+            try:
+                stats = sync_library(library)
+                set_flash(
+                    f"上传完成 {len(saved)} 个文件；"
+                    f"同步新增 {len(stats.added)} 个",
+                    "📤",
+                )
+            except Exception as e:
+                set_flash(f"文件已保存，但同步失败：{e}", "⚠️")
+        elif skipped:
+            set_flash(f"没有新增文件（{skipped} 个内容相同）", "✅")
         else:
-            st.caption("暂无文档，可上传或运行生成脚本")
+            set_flash("没有文件被保存", "⚠️")
 
-# 初始化会话历史
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+        if notes:
+            set_flash(f"上传完成，{len(notes)} 个文件未处理", "⚠️")
+        bump_refresh()
+        st.rerun()
 
-# 已提示过的工具调用集合，用于避免同一个工具调用在流式输出里被重复提醒
-if "shown_tool_calls" not in st.session_state:
-    st.session_state.shown_tool_calls = set()
 
-# 每轮检索到的来源，用于让 agent 在多轮对话中记住之前引用过的文档
-if "retrieved_sources" not in st.session_state:
-    st.session_state.retrieved_sources = []
+def render_sidebar(library, docs: list[dict], settings: dict) -> None:
+    with st.sidebar:
+        missing = [key for key in REQUIRED_KEYS if not os.getenv(key)]
+        if missing:
+            st.warning(
+                "未配置 API Key："
+                + "、".join(missing)
+                + "。同步和问答会失败，请写入 .env 后重启应用。"
+            )
 
-# 显示历史对话
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if st.button("⚙️ 设置", use_container_width=True):
+            settings_dialog(settings)
 
-# 用户输入
-user_input = st.chat_input("请输入你的问题...")
+        st.header("知识库")
+        st.caption(library.name)
 
-if user_input:
-    # 定义历史消息
+        render_sources(library, docs)
+        render_doc_list(library, docs)
+
+        st.divider()
+        if st.button("🔄 同步文档库", use_container_width=True):
+            sync_dialog(library)
+
+        render_upload(library)
+
+        st.divider()
+        st.caption(f"数据目录：{library.base_dir}")
+
+
+# ---------------------------------------------------------------------------
+# 右栏：预览
+# ---------------------------------------------------------------------------
+
+def render_preview(library) -> None:
+    doc_key = st.session_state.get("preview_doc_key")
+    if not doc_key:
+        st.info("点击文档旁边的预览按钮，即可开始预览")
+        return
+
+    try:
+        source_id, rel_path = library.split_doc_key(doc_key)
+        source = library.source(source_id)
+        path = library.resolve_doc_path(source_id, rel_path)
+    except Exception as e:
+        st.warning(f"无法打开文档：{e}")
+        return
+
+    col_back, col_folder, _ = st.columns([1, 1, 4])
+    with col_back:
+        if st.button("← 返回对话"):
+            st.session_state["_pending_view"] = "对话"
+            st.rerun()
+    with col_folder:
+        if st.button("📂 所在文件夹"):
+            ok, detail = open_in_file_manager(path.parent)
+            if not ok:
+                st.warning(detail)
+
+    st.subheader(rel_path.name)
+    st.caption(f"{source.label} · {path}")
+
+    if not path.is_file():
+        st.warning("文件不存在，可能已被移动或删除")
+        return
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0
+    content = load_preview(str(path), mtime)
+    with st.container(height=620):
+        st.markdown(content)
+
+
+# ---------------------------------------------------------------------------
+# 右栏：对话
+# ---------------------------------------------------------------------------
+
+def _build_history() -> list:
     history = []
     assistant_count = 0
     for msg in st.session_state.messages:
         if msg["role"] == "user":
             history.append(HumanMessage(content=msg["content"]))
-        else:
-            content = msg["content"]
-            # 把该轮检索到的来源附加到助手消息末尾，让 agent 多轮时记住引用了哪些文档
-            if assistant_count < len(st.session_state.retrieved_sources):
-                sources = st.session_state.retrieved_sources[assistant_count]
-                if sources:
-                    content += f"\n\n[本轮检索来源: {sources}]"
-            assistant_count += 1
-            history.append(AIMessage(content=content))
+            continue
 
-    # 旧消息的总结
-    history = summarize_history(history)
+        content = msg["content"]
+        if assistant_count < len(st.session_state.retrieved_sources):
+            sources = st.session_state.retrieved_sources[assistant_count]
+            if sources:
+                content += f"\n\n[本轮检索来源: {sources}]"
+        assistant_count += 1
+        history.append(AIMessage(content=content))
+    return history
 
-    # 显示用户消息
+
+def render_chat(library, settings: dict) -> None:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "shown_tool_calls" not in st.session_state:
+        st.session_state.shown_tool_calls = set()
+    if "retrieved_sources" not in st.session_state:
+        st.session_state.retrieved_sources = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    user_input = st.chat_input("请输入你的问题...")
+    if not user_input:
+        return
+
+    budget = BudgetConfig.from_settings(settings)
+    history = _build_history()
+    # 先按字符预算裁剪，避免“历史摘要”本身的输入就超限
+    history, history_report = cap_history(history, budget)
+    try:
+        history = summarize_history(history, settings["history_limit"])
+    except Exception as e:
+        st.warning(f"历史压缩失败，使用完整历史：{e}")
+
+    history, post_report = cap_history(history, budget)
+    history_report.trimmed_messages += post_report.trimmed_messages
+    history_report.truncated_messages += post_report.truncated_messages
+    history_report.removed_chars += post_report.removed_chars
+    history_report.history_chars = post_report.history_chars
+
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    prompt_text, retrieved_info = new_prompt(user_input, history, k=st.session_state.get("k_override"))
+    turn_id = len(st.session_state.messages)
 
-    # 保存本轮检索来源（供下一轮 agent 理解指代）
+    try:
+        prompt_text, retrieved_info = new_prompt(
+            user_input,
+            history,
+            k=settings["k"],
+            retriever_fn=lambda q, k=None, fetch_k=None: retriever_for_library(
+                q, library, k, fetch_k
+            ),
+            max_retrieval_chars=budget.max_retrieval_chars,
+        )
+    except Exception as e:
+        st.warning(f"检索失败，直接回答：{e}")
+        prompt_text = user_input
+        retrieved_info = []
+
+    history, prompt_text, prompt_report = finalize_prompt(
+        MODE_PROMPTS["normal"],
+        history,
+        prompt_text,
+        budget,
+    )
+    trimmed = history_report.trimmed_messages + prompt_report.trimmed_messages
+    truncated = (
+        history_report.truncated_messages
+        + prompt_report.truncated_messages
+        + (1 if prompt_report.truncated_prompt else 0)
+    )
+    if trimmed or truncated:
+        detail = f"已省略 {trimmed} 条较早历史"
+        if truncated:
+            detail += f"，截断 {truncated} 条过长内容"
+        st.caption(f"上下文较长：{detail}")
+
     if retrieved_info:
         sources_text = "；".join(
-            f"{info['source']}（{info['preview'][:30]}…）" for info in retrieved_info
+            f"{info['source']}（{info['preview'][:30]}…）"
+            for info in retrieved_info
         )
     else:
         sources_text = ""
@@ -269,73 +965,148 @@ if user_input:
 
     current_message = HumanMessage(prompt_text)
 
-    # 侧边栏：展示思考过程
     with st.sidebar:
         st.divider()
         st.subheader("💭 思考过程")
         if retrieved_info:
             for info in retrieved_info:
                 st.caption(f"📄 来源: {info['source']}")
-                st.text(info['preview'])
+                st.text(info["preview"])
         else:
             st.caption("未检索文档库（直接回答）")
 
-    # AI 回复（流式输出）
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_response = ""
 
         with st.spinner("思考中..."):
             try:
+                agent = get_agent()
                 for chunk in agent.stream(
                     {"messages": history + [current_message]},
                     stream_mode="messages",
                     context={"mode": "normal"},
                 ):
                     if isinstance(chunk, tuple):
-                        msg, metadata = chunk
+                        msg, _metadata = chunk
                     else:
                         msg = chunk
-                        metadata = {}
 
-                    # 检测工具调用（流式输出时 tool_calls 会被拆成多个 chunk，
-                    # 需按 tool_call 的 id 去重，且等名称就绪后再提示，避免重复或空提醒）
-                    if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                        for tc in msg.tool_calls:
-                            tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
-                            tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-                            # 名称还没流到（部分 chunk 里 name 为空），跳过避免显示空提醒
-                            if not tc_name:
+                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                        for tool_call in msg.tool_calls:
+                            call_id = (
+                                tool_call.get("id")
+                                if isinstance(tool_call, dict)
+                                else getattr(tool_call, "id", None)
+                            )
+                            call_name = (
+                                tool_call.get("name")
+                                if isinstance(tool_call, dict)
+                                else getattr(tool_call, "name", None)
+                            )
+                            if not call_name:
                                 continue
-                            # 同一个工具调用只提示一次
-                            if tc_id not in st.session_state.shown_tool_calls:
-                                st.session_state.shown_tool_calls.add(tc_id)
+                            if call_id not in st.session_state.shown_tool_calls:
+                                st.session_state.shown_tool_calls.add(call_id)
                                 with st.sidebar:
-                                    st.info(f"🔧 正在调用工具: {tc_name}")
+                                    st.info(f"🔧 正在调用工具: {call_name}")
 
-                    # 只取 AI 消息的内容片段
                     if isinstance(msg, AIMessageChunk) and msg.content:
                         full_response += msg.content
                         placeholder.markdown(full_response + "▌")
-
             except Exception as e:
-                # 如果 stream 失败，回退到 invoke
-                # 必须传 context：中间件要读 runtime.context["mode"]，
-                # 不传的话它拿到 None —— 虽然中间件已做防御，但显式传更稳，
-                # 也与上面的 stream 路径保持一致
-                prompt_text, _ = new_prompt(user_input)
-                response = agent.invoke(
-                    {"messages": [HumanMessage(prompt_text)]},
-                    context={"mode": "normal"},
-                )
-                full_response = response["messages"][-1].content
+                st.warning(f"流式输出失败：{e}")
+                recovered = False
+                if is_context_error(e):
+                    retry_history = history[-2:] if len(history) > 2 else []
+                    retry_prompt = truncate_text(
+                        prompt_text,
+                        max(1000, budget.max_prompt_chars // 2),
+                    )
+                    try:
+                        response = get_agent().invoke(
+                            {
+                                "messages": retry_history
+                                + [HumanMessage(retry_prompt)]
+                            },
+                            context={"mode": "normal"},
+                        )
+                        full_response = response["messages"][-1].content
+                        recovered = True
+                        st.info("检测到上下文过长，已缩短历史后重试。")
+                    except Exception as retry_error:
+                        st.warning(
+                            f"缩短上下文后仍然失败：{retry_error}"
+                        )
 
-        # 最终显示完整回复
+                if not recovered:
+                    try:
+                        response = get_agent().invoke(
+                            {"messages": history + [current_message]},
+                            context={"mode": "normal"},
+                        )
+                        full_response = response["messages"][-1].content
+                    except Exception as e2:
+                        full_response = f"抱歉，当前无法调用模型：{e2}"
+
         if full_response:
             placeholder.markdown(full_response)
         else:
             placeholder.markdown("抱歉，我没能生成回答，请重试。")
 
-    # 保存到历史
     if full_response:
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": full_response,
+        })
+
+    if retrieved_info:
+        st.caption("参考来源")
+        columns = st.columns(min(3, len(retrieved_info)))
+        for index, info in enumerate(retrieved_info[:6]):
+            doc_key = info.get("doc_key")
+            if not doc_key:
+                continue
+            with columns[index % len(columns)]:
+                if st.button(
+                    f"📄 {info['source']}",
+                    key=f"src_{turn_id}_{index}",
+                    use_container_width=True,
+                ):
+                    goto_preview(doc_key)
+
+
+# ---------------------------------------------------------------------------
+# 页面
+# ---------------------------------------------------------------------------
+
+settings = load_settings()
+apply_theme(settings["theme"])
+
+st.title("文档问答助手")
+show_flash()
+
+registry = get_registry()
+library = ensure_library(registry)
+apply_pending_view()
+
+try:
+    documents = load_documents(library.id, st.session_state.refresh_token)
+except Exception as e:
+    st.error(f"读取文档库失败：{e}")
+    documents = []
+
+render_sidebar(library, documents, settings)
+
+view_mode = st.radio(
+    "视图",
+    ["对话", "预览"],
+    horizontal=True,
+    key="view_mode",
+    label_visibility="collapsed",
+)
+
+if view_mode == "预览":
+    render_preview(library)
+else:
+    render_chat(library, settings)

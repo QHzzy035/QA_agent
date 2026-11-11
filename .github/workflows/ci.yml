@@ -71,5 +71,12 @@ jobs:
           from tools.document_service import read_document
           from tools.web_search import web_search
           from tools.pdf_writer import write_pdf
+          from tools.app_paths import data_dir
+          from tools.library import LibraryRegistry
+          from rag.scanner import scan_source
+          from rag.sync import collect_documents
+          from tools.settings_store import load_settings
+          from tools.context_budget import BudgetConfig
+          from tools.trash import move_to_trash
           print('核心模块导入正常，无模块级凭据依赖')
           "

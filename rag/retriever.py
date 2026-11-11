@@ -15,10 +15,11 @@ from langchain_chroma import Chroma
 from tools.config_loader import persist_directory, rag_conf
 
 _chroma = None
+_library_chroma_cache = {}
 
 
 def get_chroma() -> Chroma:
-    """返回全局 Chroma 实例（首次调用时创建）。"""
+    """返回全局 Chroma 实例（旧单库应用使用，首次调用时创建）。"""
     global _chroma
     if _chroma is None:
         from model.factory import embed_model
@@ -31,6 +32,31 @@ def get_chroma() -> Chroma:
     return _chroma
 
 
+def get_library_chroma(library) -> Chroma:
+    """按虚拟知识库返回独立的 Chroma 实例，并按库缓存。
+
+    每个库有自己的 chroma_dir，因此集合名固定用 data 也不会串库。
+    """
+    key = library.id
+    if key not in _library_chroma_cache:
+        from model.factory import embed_model
+
+        _library_chroma_cache[key] = Chroma(
+            collection_name="data",
+            embedding_function=embed_model,
+            persist_directory=str(library.chroma_dir),
+        )
+    return _library_chroma_cache[key]
+
+
+def clear_library_chroma_cache(library_id: str | None = None) -> None:
+    """清理按库缓存；删除知识库或测试隔离时使用。"""
+    if library_id is None:
+        _library_chroma_cache.clear()
+    else:
+        _library_chroma_cache.pop(library_id, None)
+
+
 # MMR检索方法
 def retriever(query: str, k: int = None, fetch_k: int = None) -> list:
     if k is None:
@@ -38,6 +64,18 @@ def retriever(query: str, k: int = None, fetch_k: int = None) -> list:
     if fetch_k is None:
         fetch_k = rag_conf["fetch_k"]
     results = get_chroma().max_marginal_relevance_search(query, k=k, fetch_k=fetch_k)
+    return [(doc.page_content, doc.metadata) for doc in results]
+
+
+def retriever_for_library(query: str, library, k: int = None, fetch_k: int = None) -> list:
+    """在指定虚拟知识库中做 MMR 检索。"""
+    if k is None:
+        k = rag_conf["k"]
+    if fetch_k is None:
+        fetch_k = rag_conf["fetch_k"]
+    results = get_library_chroma(library).max_marginal_relevance_search(
+        query, k=k, fetch_k=fetch_k
+    )
     return [(doc.page_content, doc.metadata) for doc in results]
 
 
